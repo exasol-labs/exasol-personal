@@ -150,6 +150,47 @@ func (b *localBackend) ConfigurationDefaults(
 	return defaults, nil
 }
 
+// MigrateConfigurationBeforeStart normalizes legacy automatic mappings at the
+// last safe point before a stopped runtime starts. Configure performs the
+// allocation and persists the result only after allocation succeeds.
+func (b *localBackend) MigrateConfigurationBeforeStart(ctx context.Context) error {
+	if b.manifest == nil {
+		return errors.New("local infrastructure manifest is missing")
+	}
+	rawPorts := ""
+	if b.manifest.Local != nil {
+		rawPorts = b.manifest.Local.Ports
+	}
+	if !legacyAutomaticLocalPorts(rawPorts) {
+		return nil
+	}
+
+	return b.Configure(
+		ctx,
+		map[string]string{localPortsConfigName: rawPorts},
+		DeploymentMetadata{},
+		DeploymentLayout{},
+	)
+}
+
+func legacyAutomaticLocalPorts(raw string) bool {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || strings.EqualFold(trimmed, "auto") {
+		return true
+	}
+	mappings, _, err := parseLocalPortMappings(trimmed)
+	if err != nil {
+		return false
+	}
+	for _, service := range localServiceCatalog {
+		if port, configured := mappings[service.name]; configured && port == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func hasLocalConfigOverride(supplied map[string]string, name string) bool {
 	canonical := canonicalLocalConfigName(name)
 	for suppliedName := range supplied {

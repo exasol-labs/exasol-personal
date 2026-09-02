@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -197,6 +199,43 @@ def test_running_local_configuration_requires_stop(
     options = infrastructure["options"]
     assert isinstance(options, dict)
     assert options["ports"] == "db:18563"
+
+
+def test_start_migrates_legacy_automatic_local_port_before_runtime(
+    exasol_path: str, tmp_path: Path
+) -> None:
+    # Given a stopped deployment created by an older launcher with an automatic port
+    deployment_dir = tmp_path / "deployment"
+    _init_stopped_local_deployment(exasol_path, deployment_dir, 18563)
+    manifest_path = deployment_dir / "infrastructure" / "infrastructure.yaml"
+    manifest = manifest_path.read_text()
+    assert "ports: db:18563" in manifest
+    manifest_path.write_text(manifest.replace("ports: db:18563", "ports: auto"))
+
+    # And a visible but failing runtime executable, so start reaches the runtime
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_podman = fake_bin / "podman"
+    fake_podman.write_text("#!/bin/sh\nexit 23\n")
+    fake_podman.chmod(0o700)
+    environment = os.environ.copy()
+    environment["PATH"] = f"{fake_bin}{os.pathsep}{environment['PATH']}"
+
+    # When start is attempted
+    result = subprocess.run(
+        [exasol_path, "start", "--deployment-dir", str(deployment_dir)],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=environment,
+    )
+
+    # Then migration is persisted before the unrelated runtime failure
+    assert result.returncode != 0
+    migrated = manifest_path.read_text()
+    match = re.search(r"^\s*ports:\s*db:(\d+)\s*$", migrated, re.MULTILINE)
+    assert match is not None
+    assert int(match.group(1)) > 0
 
 
 def _get_active_configuration(

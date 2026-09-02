@@ -20,6 +20,10 @@ type lifecycleActionDecision struct {
 	showConnectionInstructions bool
 }
 
+type stoppedStartConfigurationMigrator interface {
+	MigrateConfigurationBeforeStart(ctx context.Context) error
+}
+
 func workflowStatePermitsStart(
 	ctx context.Context,
 	exasolState *config.ExasolPersonalState,
@@ -223,6 +227,17 @@ func startLocked(
 	backend, err := newDeploymentBackend(ctx, deployment, manifest)
 	if err != nil {
 		return err
+	}
+	workflowState, err := exasolState.GetWorkflowState()
+	if err != nil {
+		return err
+	}
+	if _, stopped := workflowState.(*config.WorkflowStateStopped); stopped {
+		if migrator, supported := backend.(stoppedStartConfigurationMigrator); supported {
+			if err := migrator.MigrateConfigurationBeforeStart(ctx); err != nil {
+				return err
+			}
+		}
 	}
 	var externalCommandOutput io.Writer
 	if verbose {
