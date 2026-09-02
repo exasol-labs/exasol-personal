@@ -90,6 +90,115 @@ def _set_workflow_state(
     launcher_state_path.write_text(json.dumps(state))
 
 
+def _init_stopped_local_deployment(
+    exasol_path: str, deployment_dir: Path, port: int
+) -> None:
+    run_command(
+        [
+            exasol_path,
+            "init",
+            "local",
+            "--ports",
+            f"db:{port}",
+            "--deployment-dir",
+            str(deployment_dir),
+            "--no-launcher-version-check",
+        ]
+    )
+    _set_workflow_state(deployment_dir, {"stopped": {}})
+
+
+def test_stopped_local_configuration_can_be_set_and_reset(
+    exasol_path: str, tmp_path: Path
+) -> None:
+    # Given a stopped local deployment with an explicit database port
+    deployment_dir = tmp_path / "deployment"
+    _init_stopped_local_deployment(exasol_path, deployment_dir, 18563)
+
+    # When the port is changed while stopped
+    set_result = run_command(
+        [
+            exasol_path,
+            "config",
+            "set",
+            "--ports",
+            "db:28563",
+            "--deployment-dir",
+            str(deployment_dir),
+        ]
+    )
+
+    # Then the concrete value is persisted and restart guidance is shown
+    assert "ports = db:28563" in set_result.stdout
+    assert "run `exasol start` to apply these changes" in set_result.stderr
+    assert "exasol deploy" not in set_result.stderr
+
+    # When the port is reset
+    reset_result = run_command(
+        [
+            exasol_path,
+            "config",
+            "reset",
+            "ports",
+            "--deployment-dir",
+            str(deployment_dir),
+        ]
+    )
+
+    # Then a concrete automatic value is persisted and state stays stopped
+    infrastructure = _get_active_configuration(exasol_path, deployment_dir)[
+        "infrastructure"
+    ]
+    assert isinstance(infrastructure, dict)
+    options = infrastructure["options"]
+    assert isinstance(options, dict)
+    port_mapping = options["ports"]
+    assert isinstance(port_mapping, str)
+    assert port_mapping.startswith("db:")
+    assert int(port_mapping.removeprefix("db:")) > 0
+    assert "run `exasol start` to apply these changes" in reset_result.stderr
+    info_result = run_command(
+        [exasol_path, "info", "--json", "--deployment-dir", str(deployment_dir)]
+    )
+    assert json.loads(info_result.stdout)["deploymentState"] == "stopped"
+
+
+def test_running_local_configuration_requires_stop(
+    exasol_path: str, tmp_path: Path
+) -> None:
+    # Given a local deployment recorded as running
+    deployment_dir = tmp_path / "deployment"
+    _init_stopped_local_deployment(exasol_path, deployment_dir, 18563)
+    _set_workflow_state(deployment_dir, {"running": {}})
+
+    # When configuration is changed
+    result = subprocess.run(
+        [
+            exasol_path,
+            "config",
+            "set",
+            "--ports",
+            "db:28563",
+            "--deployment-dir",
+            str(deployment_dir),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    # Then the command preserves configuration and directs the user to stop
+    assert result.returncode != 0
+    assert "exasol stop" in result.stderr
+    infrastructure = _get_active_configuration(exasol_path, deployment_dir)[
+        "infrastructure"
+    ]
+    assert isinstance(infrastructure, dict)
+    options = infrastructure["options"]
+    assert isinstance(options, dict)
+    assert options["ports"] == "db:18563"
+
+
 def _get_active_configuration(
     exasol_path: str,
     deployment_dir: Path,

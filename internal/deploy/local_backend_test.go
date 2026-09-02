@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -436,8 +437,9 @@ func TestLocalBackendConfigurationDefaults_ReturnsOnlyUnsetValues(t *testing.T) 
 	if _, exists := defaults[localCPUCountConfigName]; exists {
 		t.Fatalf("expected supplied CPU count to be omitted, got %#v", defaults)
 	}
-	if defaults[localMemoryMBConfigName] != "8192" ||
-		defaults[localDataSizeGBConfigName] != "250" ||
+	expectedDefaults := defaultLocalRuntimeConfig(detectLocalHostMemoryMB(context.Background()))
+	if defaults[localMemoryMBConfigName] != strconv.Itoa(expectedDefaults.memoryMB) ||
+		defaults[localDataSizeGBConfigName] != strconv.Itoa(localDefaultDataSizeGB) ||
 		defaults[localPortsConfigName] != "db:8563" {
 		t.Fatalf("unexpected local defaults: %#v", defaults)
 	}

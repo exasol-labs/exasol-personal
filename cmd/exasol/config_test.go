@@ -138,6 +138,26 @@ func TestAddConfigurationChangedOutputSplitsValuesAndGuidance(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // mutates shared terminal message queues; must run serially
+func TestAddConfigurationChangedOutputUsesStartGuidanceForStoppedLocal(t *testing.T) {
+	resetTerminalMessages()
+	defer resetTerminalMessages()
+
+	addConfigurationChangedOutput(deploy.DeploymentConfiguration{ApplyCommand: "start"})
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	writeTerminalMessages(terminalConfig{
+		stdout: &stdout, stderr: &stderr, showCallsToAction: true,
+	})
+
+	if !strings.Contains(stderr.String(), "run `exasol start`") {
+		t.Fatalf("expected start guidance, got %q", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "exasol deploy") {
+		t.Fatalf("unexpected deploy guidance, got %q", stderr.String())
+	}
+}
+
 func TestConfigurationJSONIncludesPresetNames(t *testing.T) {
 	t.Parallel()
 

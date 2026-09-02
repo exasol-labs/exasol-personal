@@ -165,7 +165,7 @@ func TestSetDeploymentConfiguration_PreservesDeploymentCreatedAt(t *testing.T) {
 	}
 }
 
-func TestWorkflowStatePermitsConfigure_RejectsAllNonInitializedStates(t *testing.T) {
+func TestWorkflowStatePermitsConfigure_RejectsCloudNonInitializedStates(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -201,7 +201,7 @@ func TestWorkflowStatePermitsConfigure_RejectsAllNonInitializedStates(t *testing
 				t.Fatalf("set workflow state failed: %v", err)
 			}
 
-			err := WorkflowStatePermitsConfigure(exasolState)
+			err := WorkflowStatePermitsConfigure(exasolState, backendTypeTofu)
 
 			if !errors.Is(err, ErrConfigureNotAllowed) {
 				t.Fatalf("expected ErrConfigureNotAllowed, got %v", err)
@@ -214,6 +214,139 @@ func TestWorkflowStatePermitsConfigure_RejectsAllNonInitializedStates(t *testing
 			}
 		})
 	}
+}
+
+func TestWorkflowStatePermitsConfigure_AllowsStoppedLocalDeployment(t *testing.T) {
+	t.Parallel()
+
+	exasolState := &config.ExasolPersonalState{}
+	if err := exasolState.SetWorkflowState(&config.WorkflowStateStopped{}); err != nil {
+		t.Fatalf("set workflow state failed: %v", err)
+	}
+
+	if err := WorkflowStatePermitsConfigure(exasolState, backendTypeLocal); err != nil {
+		t.Fatalf("expected stopped local configuration to be allowed, got %v", err)
+	}
+}
+
+func TestWorkflowStatePermitsConfigure_GuidesActiveLocalDeploymentToStop(t *testing.T) {
+	t.Parallel()
+
+	for _, workflowState := range []any{
+		&config.WorkflowStateRunning{},
+		&config.WorkflowStateOperationInProgress{Operation: config.DeployOperation},
+	} {
+		exasolState := &config.ExasolPersonalState{}
+		if err := exasolState.SetWorkflowState(workflowState); err != nil {
+			t.Fatalf("set workflow state failed: %v", err)
+		}
+
+		err := WorkflowStatePermitsConfigure(exasolState, backendTypeLocal)
+		if !errors.Is(err, ErrConfigureNotAllowed) ||
+			!strings.Contains(err.Error(), "exasol stop") {
+			t.Fatalf("expected local stop guidance, got %v", err)
+		}
+	}
+}
+
+func TestStoppedLocalDeploymentCanBeSetAndReset(t *testing.T) {
+	t.Parallel()
+
+	ctx := testManagerContext(t)
+	deployment := config.NewDeploymentDir(t.TempDir())
+	if err := InitDeployment(
+		ctx,
+		deployment,
+		InitOptions{
+			InfrastructurePreset: PresetRef{Name: "local"},
+			InstallationPreset:   PresetRef{Name: "local"},
+			InfraVars:            map[string]string{localPortsConfigName: "db:18563"},
+			InstallVars:          map[string]string{},
+			CurrentVersion:       "0.0.0",
+		},
+	); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+	state, err := config.ReadExasolPersonalState(deployment)
+	if err != nil {
+		t.Fatalf("read state failed: %v", err)
+	}
+	if err := state.SetWorkflowStateAndWrite(
+		&config.WorkflowStateStopped{}, deployment,
+	); err != nil {
+		t.Fatalf("set stopped state failed: %v", err)
+	}
+
+	updated, err := SetDeploymentConfiguration(
+		ctx,
+		map[string]string{localPortsConfigName: "db:28563"},
+		map[string]string{},
+		deployment,
+	)
+	if err != nil {
+		t.Fatalf("config set failed: %v", err)
+	}
+	updatedPorts := deploymentConfigValueByName(
+		t, updated.Infrastructure.Options, localPortsConfigName,
+	)
+	if updated.ApplyCommand != "start" ||
+		updatedPorts.RawValue != "db:28563" {
+		t.Fatalf("unexpected stopped-local update: %#v", updated)
+	}
+
+	reset, err := ResetDeploymentConfiguration(
+		ctx,
+		deployment,
+		[]string{localPortsConfigName},
+		false,
+	)
+	if err != nil {
+		t.Fatalf("config reset failed: %v", err)
+	}
+	resetPorts := deploymentConfigValueByName(
+		t, reset.Infrastructure.Options, localPortsConfigName,
+	)
+	if reset.ApplyCommand != "start" ||
+		resetPorts.RawValue == "" || resetPorts.RawValue == "auto" {
+		t.Fatalf("expected concrete reset port and start guidance, got %#v", reset)
+	}
+	portMappings, _, err := parseLocalPortMappings(resetPorts.RawValue)
+	if err != nil || portMappings[localDatabaseService] <= 0 {
+		t.Fatalf("expected a positive concrete reset port, got %q: %v", resetPorts.RawValue, err)
+	}
+	state, err = config.ReadExasolPersonalState(deployment)
+	if err != nil {
+		t.Fatalf("read state after reset failed: %v", err)
+	}
+	if _, ok := mustWorkflowState(t, state).(*config.WorkflowStateStopped); !ok {
+		t.Fatalf("expected stopped state to be preserved, got %T", mustWorkflowState(t, state))
+	}
+}
+
+func deploymentConfigValueByName(
+	t *testing.T,
+	values []DeploymentConfigValue,
+	name string,
+) DeploymentConfigValue {
+	t.Helper()
+	for _, value := range values {
+		if value.Name == name {
+			return value
+		}
+	}
+	t.Fatalf("configuration option %q not found in %#v", name, values)
+
+	return DeploymentConfigValue{}
+}
+
+func mustWorkflowState(t *testing.T, state *config.ExasolPersonalState) any {
+	t.Helper()
+	workflowState, err := state.GetWorkflowState()
+	if err != nil {
+		t.Fatalf("read workflow state failed: %v", err)
+	}
+
+	return workflowState
 }
 
 // deploymentInState returns an initialized deployment whose persisted workflow state has

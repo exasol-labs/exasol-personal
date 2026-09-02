@@ -26,6 +26,9 @@ const configureNotAllowedHint = "the deployment may already have resources;\n" +
 	"run `exasol destroy` (or `exasol remove` if you have confirmed the resources are " +
 	"gone) before changing configuration, then run `exasol config set` and `exasol deploy`"
 
+const localConfigureNotAllowedHint = "the local deployment is active; " +
+	"run `exasol stop` before changing its configuration"
+
 type DeploymentID string
 
 type ClusterIdentity string
@@ -43,13 +46,13 @@ type DeploymentLayout struct {
 	InstallationPresetDir     RelativeDeploymentPath
 }
 
-// WorkflowStatePermitsConfigure rejects configuration changes whenever the
-// deployment may already have resources. Only freshly-initialized
-// deployments may be configured; any later state (running, stopped, deployment
-// failed, interrupted during deploy or destroy, or an operation in progress)
-// requires the user to run `exasol destroy` (or `exasol remove`) first so that
-// configuration changes cannot diverge from the actual deployed cloud state.
-func WorkflowStatePermitsConfigure(exasolState *config.ExasolPersonalState) error {
+// WorkflowStatePermitsConfigure permits initialized deployments and stopped
+// local deployments. Other local and cloud states retain their lifecycle-specific
+// recovery requirements.
+func WorkflowStatePermitsConfigure(
+	exasolState *config.ExasolPersonalState,
+	backendKind string,
+) error {
 	workflowState, err := exasolState.GetWorkflowState()
 	if err != nil {
 		return err
@@ -57,6 +60,15 @@ func WorkflowStatePermitsConfigure(exasolState *config.ExasolPersonalState) erro
 
 	if _, ok := workflowState.(*config.WorkflowStateInitialized); ok {
 		return nil
+	}
+	if backendKind == backendTypeLocal {
+		if _, ok := workflowState.(*config.WorkflowStateStopped); ok {
+			return nil
+		}
+		switch workflowState.(type) {
+		case *config.WorkflowStateRunning, *config.WorkflowStateOperationInProgress:
+			return fmt.Errorf("%w: %s", ErrConfigureNotAllowed, localConfigureNotAllowedHint)
+		}
 	}
 
 	return fmt.Errorf("%w: %s", ErrConfigureNotAllowed, configureNotAllowedHint)
