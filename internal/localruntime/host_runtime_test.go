@@ -19,7 +19,7 @@ import (
 	"github.com/exasol/exasol-personal/internal/localinstall"
 )
 
-func TestLinuxHostPodmanStartConfig_UsesReferenceDefaults(t *testing.T) {
+func TestLinuxHostPodmanStartConfig_RequiresConcreteDatabasePort(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -27,23 +27,10 @@ func TestLinuxHostPodmanStartConfig_UsesReferenceDefaults(t *testing.T) {
 	localRuntime := NewHostLinuxRuntime(deployment, nil)
 
 	// When
-	startConfig, err := localRuntime.podmanStartConfig(RuntimeConfig{})
+	_, err := localRuntime.podmanStartConfig(RuntimeConfig{})
 	// Then
-	if err != nil {
-		t.Fatalf("expected default config, got %v", err)
-	}
-	if startConfig.ContainerDBPort != nanoDBPort {
-		t.Fatalf("unexpected default DB port: %#v", startConfig)
-	}
-	if startConfig.ContainerDBBindHost != hostLoopbackHost {
-		t.Fatalf("expected loopback DB bind, got %#v", startConfig)
-	}
-	if startConfig.DataDir != filepath.Join(localRuntime.paths.WorkDir, nanoDataDirName) {
-		t.Fatalf("unexpected Nano data directory %q", startConfig.DataDir)
-	}
-	if len(startConfig.InitParams) != 1 ||
-		startConfig.InitParams[0] != "maxConnectionsLicenseLimit=20" {
-		t.Fatalf("unexpected Nano init params: %#v", startConfig.InitParams)
+	if err == nil || !strings.Contains(err.Error(), "positive concrete port") {
+		t.Fatalf("expected concrete-port requirement, got %v", err)
 	}
 }
 
@@ -75,6 +62,16 @@ func TestLinuxHostPodmanStartConfig_UsesOnlyCommonRuntimeConfig(t *testing.T) {
 	}
 	if startConfig.ContainerDBPort != 28563 {
 		t.Fatalf("expected published DB port override, got %#v", startConfig)
+	}
+	if startConfig.ContainerDBBindHost != hostLoopbackHost {
+		t.Fatalf("expected loopback DB bind, got %#v", startConfig)
+	}
+	if startConfig.DataDir != filepath.Join(localRuntime.paths.WorkDir, nanoDataDirName) {
+		t.Fatalf("unexpected Nano data directory %q", startConfig.DataDir)
+	}
+	if len(startConfig.InitParams) != 1 ||
+		startConfig.InitParams[0] != "maxConnectionsLicenseLimit=20" {
+		t.Fatalf("unexpected Nano init params: %#v", startConfig.InitParams)
 	}
 	if !reflect.DeepEqual(startConfig.VersionCheck, vmConfig.VersionCheck) {
 		t.Fatalf("expected portable version-check settings, got %#v", startConfig.VersionCheck)
@@ -439,10 +436,13 @@ func TestResolveLinuxHostDBPort_RejectsInvalidMappings(t *testing.T) {
 		{name: "missing service", ports: ":8563"},
 		{name: "missing port", ports: "db:"},
 		{name: "non numeric", ports: "db:abc"},
+		{name: "automatic", ports: "auto"},
+		{name: "empty", ports: ""},
 		{name: "zero", ports: "db:0"},
 		{name: "too large", ports: "db:65536"},
 		{name: "duplicate DB", ports: "db:8563,db:28563"},
 		{name: "malformed ignored service", ports: "ssh:not-a-port,db:8563"},
+		{name: "missing database service", ports: "ssh:20022"},
 	}
 
 	for _, test := range tests {

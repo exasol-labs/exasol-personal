@@ -71,9 +71,6 @@ func TestResolveMacHostDBPort(t *testing.T) {
 		ports string
 		want  int
 	}{
-		{ports: "", want: 8563},
-		{ports: "auto", want: 0},
-		{ports: "db:0", want: 0},
 		{ports: "db:28563", want: 28563},
 		{ports: "ssh:20022, db:28563", want: 28563},
 	}
@@ -90,7 +87,9 @@ func TestResolveMacHostDBPort(t *testing.T) {
 		}
 	}
 
-	for _, ports := range []string{"db", "db:-1", "db:65536", "db:1,db:2"} {
+	for _, ports := range []string{
+		"", "auto", "db", "db:0", "db:-1", "db:65536", "db:1,db:2", "ssh:20022",
+	} {
 		if _, err := resolveMacHostDBPort(ports); err == nil {
 			t.Fatalf("expected invalid mapping %q to fail", ports)
 		}
