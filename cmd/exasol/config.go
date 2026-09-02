@@ -178,9 +178,16 @@ func configurationOptionsJSON(values []deploy.DeploymentConfigValue) map[string]
 const configurationApplyGuidance = "configuration updated locally; " +
 	"run `exasol deploy` to apply these changes"
 
+const configurationRestartGuidance = "configuration updated locally; " +
+	"run `exasol start` to apply these changes"
+
 func addConfigurationChangedOutput(configuration deploy.DeploymentConfiguration) {
 	addTerminalOutput(formatConfigurationValues(configuration))
-	addTerminalCallToAction(configurationApplyGuidance)
+	guidance := configurationApplyGuidance
+	if configuration.ApplyCommand == "start" {
+		guidance = configurationRestartGuidance
+	}
+	addTerminalCallToAction(guidance)
 }
 
 func formatConfigurationValues(configuration deploy.DeploymentConfiguration) string {

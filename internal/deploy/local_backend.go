@@ -124,19 +124,11 @@ func (b *localBackend) ConfigurationDefaults(
 	}
 
 	capabilities := localCapabilitiesForPlatform(b.goos, b.goarch)
-	runtimeConfig, err := resolveLocalRuntimeConfigForPlatform(
-		b.manifest,
-		detectLocalHostMemoryMB(ctx),
-		b.goos,
-		b.goarch,
-	)
-	if err != nil {
-		return nil, err
-	}
+	runtimeConfig := defaultLocalRuntimeConfig(detectLocalHostMemoryMB(ctx))
 
 	defaults := make(map[string]string)
 	if !hasLocalConfigOverride(supplied, localPortsConfigName) {
-		ports, err := b.ports.resolve(ctx, runtimeConfig.ports, localServiceCatalog)
+		ports, err := b.ports.resolve(ctx, "", localServiceCatalog)
 		if err != nil {
 			return nil, err
 		}
