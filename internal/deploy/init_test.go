@@ -214,6 +214,38 @@ func TestInitDeployment_CreatesDeploymentDir(t *testing.T) {
 	}
 }
 
+func TestInitDeployment_PersistsConcreteLocalPort(t *testing.T) {
+	t.Parallel()
+
+	deployment := config.NewDeploymentDir(t.TempDir())
+	err := InitDeployment(
+		testManagerContext(t),
+		deployment,
+		InitOptions{
+			InfrastructurePreset: PresetRef{Name: "local"},
+			InstallationPreset:   PresetRef{Name: "local"},
+			InfraVars:            map[string]string{},
+			InstallVars:          map[string]string{},
+			CurrentVersion:       "0.0.0",
+		},
+	)
+	if err != nil {
+		t.Fatalf("InitDeployment failed: %v", err)
+	}
+
+	manifest, err := presets.ReadInfrastructureManifestFromDir(deployment.InfrastructureDir())
+	if err != nil {
+		t.Fatalf("failed to read local manifest: %v", err)
+	}
+	if manifest.Local == nil {
+		t.Fatal("expected local manifest configuration")
+	}
+	mappings, _, err := parseLocalPortMappings(manifest.Local.Ports)
+	if err != nil || mappings[localDatabaseService] <= 0 {
+		t.Fatalf("expected concrete database port, got %#v", manifest.Local)
+	}
+}
+
 func parseTFVarsFile(tfvars []byte, filename string) (map[string]string, error) {
 	parser := hclparse.NewParser()
 	file, diags := parser.ParseHCL(tfvars, filename)

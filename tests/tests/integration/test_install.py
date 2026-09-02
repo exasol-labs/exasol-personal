@@ -430,7 +430,11 @@ def test_init_local_host_configuration_omits_vm_sizing(
 
     # Then only the host-relevant local option is reported
     options = json.loads(result.stdout)["infrastructure"]["options"]
-    assert options == {"ports": ""}
+    assert set(options) == {"ports"}
+    service, separator, raw_port = options["ports"].partition(":")
+    assert service == "db"
+    assert separator == ":"
+    assert int(raw_port) > 0
 
 
 @pytest.mark.skipif(

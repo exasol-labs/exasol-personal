@@ -100,6 +100,26 @@ func TestNewDeploymentBackend_AcceptsTofuManifestWithoutTofuSectionAsNoop(t *tes
 	}
 }
 
+func TestTofuBackendConfigurationDefaults_AreEmpty(t *testing.T) {
+	t.Parallel()
+
+	backend := newTofuBackend(
+		config.NewDeploymentDir(t.TempDir()),
+		&presets.InfrastructureManifest{Backend: backendTypeTofu},
+		nil,
+	)
+	defaults, err := backend.ConfigurationDefaults(
+		context.Background(),
+		map[string]string{"cluster_size": "2"},
+	)
+	if err != nil {
+		t.Fatalf("expected no defaults error, got %v", err)
+	}
+	if len(defaults) != 0 {
+		t.Fatalf("expected no launcher-owned tofu defaults, got %#v", defaults)
+	}
+}
+
 func TestNewDeploymentBackend_ReturnsLocalBackendForLocalManifest(t *testing.T) {
 	t.Parallel()
 

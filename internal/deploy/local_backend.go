@@ -75,6 +75,7 @@ func newLocalBackendForPlatform(
 		runtime:    localRuntime,
 		goos:       goos,
 		goarch:     goarch,
+		ports:      newLocalPortAllocator(),
 	}
 }
 
@@ -84,6 +85,7 @@ type localBackend struct {
 	runtime    localruntime.Runtime
 	goos       string
 	goarch     string
+	ports      localPortAllocator
 }
 
 type localPlatformCapabilities struct {
@@ -113,6 +115,60 @@ func (*localBackend) SetupWorkspace(_ context.Context) error {
 	return nil
 }
 
+func (b *localBackend) ConfigurationDefaults(
+	ctx context.Context,
+	supplied map[string]string,
+) (map[string]string, error) {
+	if b.manifest == nil {
+		return nil, errors.New("local infrastructure manifest is missing")
+	}
+
+	capabilities := localCapabilitiesForPlatform(b.goos, b.goarch)
+	runtimeConfig, err := resolveLocalRuntimeConfigForPlatform(
+		b.manifest,
+		detectLocalHostMemoryMB(ctx),
+		b.goos,
+		b.goarch,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	defaults := make(map[string]string)
+	if !hasLocalConfigOverride(supplied, localPortsConfigName) {
+		ports, err := b.ports.resolve(ctx, runtimeConfig.ports, localServiceCatalog)
+		if err != nil {
+			return nil, err
+		}
+		defaults[localPortsConfigName] = ports
+	}
+	if !capabilities.vmSizing {
+		return defaults, nil
+	}
+	if !hasLocalConfigOverride(supplied, localCPUCountConfigName) {
+		defaults[localCPUCountConfigName] = strconv.Itoa(runtimeConfig.cpuCount)
+	}
+	if !hasLocalConfigOverride(supplied, localMemoryMBConfigName) {
+		defaults[localMemoryMBConfigName] = strconv.Itoa(runtimeConfig.memoryMB)
+	}
+	if !hasLocalConfigOverride(supplied, localDataSizeGBConfigName) {
+		defaults[localDataSizeGBConfigName] = strconv.Itoa(runtimeConfig.dataSizeGB)
+	}
+
+	return defaults, nil
+}
+
+func hasLocalConfigOverride(supplied map[string]string, name string) bool {
+	canonical := canonicalLocalConfigName(name)
+	for suppliedName := range supplied {
+		if canonicalLocalConfigName(suppliedName) == canonical {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (b *localBackend) Configure(
 	ctx context.Context,
 	overrides map[string]string,
@@ -128,6 +184,11 @@ func (b *localBackend) Configure(
 	if err := applyLocalConfigOverrides(local, overrides, capabilities); err != nil {
 		return err
 	}
+	ports, err := b.ports.resolve(ctx, local.Ports, localServiceCatalog)
+	if err != nil {
+		return err
+	}
+	local.Ports = ports
 
 	runtimeConfig, err := resolveLocalRuntimeConfigForPlatform(
 		b.manifest, detectLocalHostMemoryMB(ctx), b.goos, b.goarch,

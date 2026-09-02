@@ -407,6 +407,42 @@ func TestLocalBackendReadConfiguration_LinuxExposesOnlyPorts(t *testing.T) {
 	}
 }
 
+func TestLocalBackendConfigurationDefaults_ReturnsOnlyUnsetValues(t *testing.T) {
+	t.Parallel()
+
+	manifest := &presets.InfrastructureManifest{
+		Backend: backendTypeLocal,
+		Local: &presets.InfrastructureLocal{
+			CPUCount: 4, MemoryMB: 8192, DataSizeGB: 250,
+		},
+	}
+	backend := newLocalBackendForPlatform(
+		config.NewDeploymentDir(t.TempDir()), manifest, nil, localMacOS, localMacArch,
+	)
+	backend.ports = testLocalPortAllocator(
+		t,
+		localMinimumAutomaticPort,
+		localMaximumPort,
+		func(_ string, port int) bool { return port == localDatabasePort },
+	)
+
+	defaults, err := backend.ConfigurationDefaults(
+		context.Background(),
+		map[string]string{localCPUCountConfigName: "8"},
+	)
+	if err != nil {
+		t.Fatalf("expected local defaults, got %v", err)
+	}
+	if _, exists := defaults[localCPUCountConfigName]; exists {
+		t.Fatalf("expected supplied CPU count to be omitted, got %#v", defaults)
+	}
+	if defaults[localMemoryMBConfigName] != "8192" ||
+		defaults[localDataSizeGBConfigName] != "250" ||
+		defaults[localPortsConfigName] != "db:8563" {
+		t.Fatalf("unexpected local defaults: %#v", defaults)
+	}
+}
+
 func TestLocalBackendConfigure_WritesSizingValuesToManifest(t *testing.T) {
 	t.Parallel()
 
