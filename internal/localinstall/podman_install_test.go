@@ -6,14 +6,17 @@ package localinstall
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/exasol/exasol-personal/internal/config"
+	"github.com/exasol/exasol-personal/internal/localports"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 )
 
@@ -355,7 +358,7 @@ func TestPodmanInstallStart_StopsAfterCommandFailure(t *testing.T) {
 			name:             "run",
 			failedCommand:    "run",
 			expectedError:    "failed to start Nano container",
-			expectedCommands: 8,
+			expectedCommands: 9,
 		},
 		{
 			name:             "unparseable load output",
@@ -377,6 +380,7 @@ func TestPodmanInstallStart_StopsAfterCommandFailure(t *testing.T) {
 
 			// Given
 			install, startConfig, fixture := newPodmanInstallFixture(t)
+			install.portAvailable = func(string, int) bool { return true }
 			if test.failedCommand != "" {
 				writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), test.failedCommand)
 			}
@@ -396,6 +400,58 @@ func TestPodmanInstallStart_StopsAfterCommandFailure(t *testing.T) {
 				t.Fatalf("expected %d commands, got %#v", test.expectedCommands, commands)
 			}
 		})
+	}
+}
+
+func TestPodmanInstallStartClassifiesConfirmedBindFailures(t *testing.T) {
+	t.Parallel()
+	skipPodmanInstallTestOnWindows(t)
+
+	for _, test := range []struct {
+		name           string
+		bindDiagnostic bool
+		portAvailable  bool
+	}{
+		{name: "diagnostic", bindDiagnostic: true, portAvailable: true},
+		{name: "post failure availability", portAvailable: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			install, startConfig, fixture := newPodmanInstallFixture(t)
+			writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
+			if test.bindDiagnostic {
+				writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
+			}
+			install.portAvailable = func(string, int) bool { return test.portAvailable }
+
+			err := install.Start(context.Background(), nil, nil, startConfig)
+
+			var unavailable *localports.UnavailableError
+			if !errors.As(err, &unavailable) || unavailable.Service != "db" ||
+				unavailable.Port != startConfig.ContainerDBPort {
+				t.Fatalf("expected unavailable database port, got %v", err)
+			}
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+				t.Fatalf("expected original command error in chain, got %v", err)
+			}
+		})
+	}
+}
+
+func TestPodmanInstallStartDoesNotClassifyPartialStartAsBindFailure(t *testing.T) {
+	t.Parallel()
+	skipPodmanInstallTestOnWindows(t)
+
+	install, startConfig, fixture := newPodmanInstallFixture(t)
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "partial-start"), "enabled")
+	install.portAvailable = func(string, int) bool { return false }
+
+	err := install.Start(context.Background(), nil, nil, startConfig)
+
+	if _, unavailable := localports.AsUnavailable(err); unavailable {
+		t.Fatalf("partial start must retain generic command failure, got %v", err)
 	}
 }
 
@@ -763,8 +819,15 @@ if [ "$1" != "podman" ]; then
 fi
 command=$2
 if [ -f "$scenario_dir/fail" ] && [ "$(cat "$scenario_dir/fail")" = "$command" ]; then
-  printf 'fake %s failure\n' "$command" >&2
-  exit 42
+	if [ "$command" = "run" ] && [ -f "$scenario_dir/partial-start" ]; then
+		touch "$scenario_dir/running"
+	fi
+	if [ "$command" = "run" ] && [ -f "$scenario_dir/bind-diagnostic" ]; then
+		printf 'bind: address already in use\n' >&2
+	else
+		printf 'fake %s failure\n' "$command" >&2
+	fi
+	exit 42
 fi
 if [ "$command" = "import" ] && [ -f "$scenario_dir/fail-import-image" ]; then
   for last_argument in "$@"; do :; done
