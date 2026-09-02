@@ -84,6 +84,7 @@ macOS ARM64. VM-specific and historical-update cases remain guarded for macOS.
 |------|---------|-------------|
 | `test_ports_override_sets_db_port` | local | Verifies that `--ports db:<port>` correctly routes the DB port through the selected local runtime; confirms the DB is reachable on the custom port |
 | `test_ports_override_stable_across_restarts` | local | Verifies that a custom DB port assigned at `exasol init` is preserved in `deployment.json` and remains reachable after a stop/start cycle |
+| `test_static_local_port_selection_reconfiguration_and_recovery` | local | Verifies deterministic automatic selection, stable restart ports, stopped reconfiguration, occupied-port failure, and recovery with a new automatic port |
 
 `tests/tests/deployment/test_local_update.py`
 
