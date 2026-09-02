@@ -6,8 +6,10 @@ package deploy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,6 +51,130 @@ func TestValidateLocalPlatform_AcceptsMacOSAppleSilicon(t *testing.T) {
 	// Then
 	if err != nil {
 		t.Fatalf("expected platform to be accepted, got %v", err)
+	}
+}
+
+func TestLocalBackendMigratesLegacyAutomaticPortsOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, rawPorts := range []string{"", "auto", "db:0"} {
+		t.Run(fmt.Sprintf("ports_%q", rawPorts), func(t *testing.T) {
+			t.Parallel()
+			deployment := config.NewDeploymentDir(t.TempDir())
+			if err := os.MkdirAll(deployment.InfrastructureDir(), 0o700); err != nil {
+				t.Fatalf("create infrastructure directory failed: %v", err)
+			}
+			writeTestFile(t, deployment.InfrastructureManifestPath(), fmt.Sprintf(`
+name: Local
+description: Local
+backend: local
+local:
+  ports: %q
+`, rawPorts))
+			manifest := &presets.InfrastructureManifest{
+				Backend: backendTypeLocal,
+				Local:   &presets.InfrastructureLocal{Ports: rawPorts},
+			}
+			backend := newLocalBackendForPlatform(
+				deployment, manifest, nil, localLinuxOS, localLinuxAMD64,
+			)
+			listenCalls := 0
+			backend.ports = testLocalPortAllocator(
+				t,
+				localMinimumAutomaticPort,
+				localMaximumPort,
+				func(_ string, port int) bool {
+					listenCalls++
+					return port == localDatabasePort
+				},
+			)
+
+			if err := backend.MigrateConfigurationBeforeStart(context.Background()); err != nil {
+				t.Fatalf("first migration failed: %v", err)
+			}
+			if err := backend.MigrateConfigurationBeforeStart(context.Background()); err != nil {
+				t.Fatalf("repeated migration failed: %v", err)
+			}
+
+			persisted, err := config.ReadInfrastructureManifest(deployment)
+			if err != nil {
+				t.Fatalf("read migrated manifest failed: %v", err)
+			}
+			if persisted.Local == nil || persisted.Local.Ports != "db:8563" ||
+				manifest.Local.Ports != "db:8563" {
+				t.Fatalf("expected persisted concrete port, got %#v", persisted.Local)
+			}
+			if listenCalls != 1 {
+				t.Fatalf("expected allocation only on first migration, got %d probes", listenCalls)
+			}
+			runtimeConfig, err := resolveLocalRuntimeConfigForPlatform(
+				manifest, 0, localLinuxOS, localLinuxAMD64,
+			)
+			if err != nil || runtimeConfig.ports != "db:8563" {
+				t.Fatalf("expected migrated runtime input, got %#v, %v", runtimeConfig, err)
+			}
+		})
+	}
+}
+
+func TestLocalBackendLegacyPortMigrationPreservesExplicitMapping(t *testing.T) {
+	t.Parallel()
+
+	manifest := &presets.InfrastructureManifest{
+		Backend: backendTypeLocal,
+		Local:   &presets.InfrastructureLocal{Ports: "db:28563"},
+	}
+	backend := newLocalBackendForPlatform(
+		config.NewDeploymentDir(t.TempDir()),
+		manifest,
+		nil,
+		localLinuxOS,
+		localLinuxAMD64,
+	)
+	backend.ports = testLocalPortAllocator(t, 2, 5, func(string, int) bool {
+		t.Fatal("explicit mapping must not invoke the allocator")
+		return false
+	})
+
+	if err := backend.MigrateConfigurationBeforeStart(context.Background()); err != nil {
+		t.Fatalf("explicit mapping migration failed: %v", err)
+	}
+	if manifest.Local.Ports != "db:28563" {
+		t.Fatalf("explicit mapping changed to %q", manifest.Local.Ports)
+	}
+}
+
+func TestLocalBackendLegacyPortMigrationFailurePreservesManifest(t *testing.T) {
+	t.Parallel()
+
+	deployment := config.NewDeploymentDir(t.TempDir())
+	if err := os.MkdirAll(deployment.InfrastructureDir(), 0o700); err != nil {
+		t.Fatalf("create infrastructure directory failed: %v", err)
+	}
+	original := `name: Local
+description: Local
+backend: local
+local:
+  ports: auto
+`
+	writeTestFile(t, deployment.InfrastructureManifestPath(), original)
+	manifest := &presets.InfrastructureManifest{
+		Backend: backendTypeLocal,
+		Local:   &presets.InfrastructureLocal{Ports: "auto"},
+	}
+	backend := newLocalBackendForPlatform(
+		deployment, manifest, nil, localLinuxOS, localLinuxAMD64,
+	)
+	backend.ports = testLocalPortAllocator(t, 2, 5, func(string, int) bool { return false })
+
+	err := backend.MigrateConfigurationBeforeStart(context.Background())
+
+	if err == nil || !strings.Contains(err.Error(), `service "db"`) {
+		t.Fatalf("expected allocation failure, got %v", err)
+	}
+	persisted, readErr := os.ReadFile(filepath.Clean(deployment.InfrastructureManifestPath()))
+	if readErr != nil || string(persisted) != original {
+		t.Fatalf("manifest changed after failed migration: %q, %v", persisted, readErr)
 	}
 }
 
