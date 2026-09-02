@@ -22,6 +22,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/localinstall"
+	"github.com/exasol/exasol-personal/internal/localports"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 	"github.com/exasol/exasol-personal/internal/util"
 )
@@ -90,6 +91,7 @@ type MacVMRuntime struct {
 	endpoint         *RuntimeEndpoint
 	installFactory   func(string) (localinstall.LocalInstall, error)
 	migrationFactory func(localinstall.ExecutionEnvironment) macDataMigrator
+	portAvailable    func(string, int) bool
 }
 
 type macDataMigrator interface {
@@ -103,9 +105,10 @@ func NewMacVMRuntime(
 	manager *runtimeartifacts.Manager,
 ) *MacVMRuntime {
 	return &MacVMRuntime{
-		deployment: deployment,
-		paths:      newVMRuntimePaths(deployment),
-		manager:    manager,
+		deployment:    deployment,
+		paths:         newVMRuntimePaths(deployment),
+		manager:       manager,
+		portAvailable: localports.IsAvailable,
 	}
 }
 
@@ -211,7 +214,25 @@ func (runtime *MacVMRuntime) Start(
 		strconv.Itoa(runtimeConfig.DataSizeGB),
 	}
 	if err := runtime.runnerCommand(ctx, runnerPath, args, out, outErr); err != nil {
-		return err
+		if runnerReportedEndpoint(runtime) {
+			return err
+		}
+		available := runtime.portAvailable
+		if available == nil {
+			available = localports.IsAvailable
+		}
+		failure := localports.ClassifyBindFailure(
+			forwardDatabaseService,
+			hostDBPort,
+			err,
+			err.Error(),
+			func() bool { return available(hostLoopbackHost, hostDBPort) },
+		)
+		if _, unavailable := localports.AsUnavailable(failure); unavailable {
+			return runtime.stopAfterStartFailure(ctx, runnerPath, out, outErr, failure)
+		}
+
+		return failure
 	}
 
 	state, err := readRunnerState(runtime.paths.StatePath)
@@ -260,6 +281,16 @@ func (runtime *MacVMRuntime) Start(
 	runtime.endpoint = endpoint
 
 	return nil
+}
+
+func runnerReportedEndpoint(runtime *MacVMRuntime) bool {
+	state, err := readRunnerState(runtime.paths.StatePath)
+	if err != nil {
+		return false
+	}
+	_, err = runtimeEndpointFromRunnerState(state)
+
+	return err == nil
 }
 
 func (runtime *MacVMRuntime) ReadEndpoints() (*VMRuntimeEndpoint, error) {

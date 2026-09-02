@@ -6,11 +6,13 @@ package deploy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
 	"github.com/exasol/exasol-personal/internal/config"
+	"github.com/exasol/exasol-personal/internal/localports"
 	"github.com/exasol/exasol-personal/internal/util"
 )
 
@@ -173,6 +175,28 @@ func markOperationInterrupted(
 	return operationErr
 }
 
+func restoreStateAfterUnavailableLocalPort(
+	exasolState *config.ExasolPersonalState,
+	deployment config.DeploymentDir,
+	workflowState any,
+	operationErr error,
+) error {
+	unavailable, ok := localports.AsUnavailable(operationErr)
+	if !ok {
+		return operationErr
+	}
+	if err := exasolState.SetWorkflowStateAndWrite(workflowState, deployment); err != nil {
+		slog.Warn("failed to restore workflow state after local port conflict", "error", err)
+	}
+
+	return fmt.Errorf(
+		"%w\nselect a replacement database port, then retry:\n"+
+			"  exasol config set --ports db:<available-port>\n"+
+			"  exasol config set --ports auto",
+		unavailable,
+	)
+}
+
 //nolint:revive
 func Start(
 	ctx context.Context,
@@ -267,6 +291,10 @@ func startLocked(
 		backend,
 		externalCommandOutput,
 		options.WaitTimeoutSeconds,
+		func() bool {
+			_, stopped := workflowState.(*config.WorkflowStateStopped)
+			return stopped
+		}(),
 	)
 }
 
@@ -284,6 +312,7 @@ func runStartBackend(
 	backend deploymentBackend,
 	externalCommandOutput io.Writer,
 	waitTimeoutSeconds int,
+	restoreStoppedOnPortConflict bool,
 ) error {
 	// Register signal handler for catching interruptions and set state
 	// in case of interruption
@@ -305,6 +334,15 @@ func runStartBackend(
 		waitTimeoutSeconds,
 	); err != nil {
 		unregister()
+		_, unavailable := localports.AsUnavailable(err)
+		if unavailable && restoreStoppedOnPortConflict {
+			return restoreStateAfterUnavailableLocalPort(
+				exasolState,
+				deployment,
+				&config.WorkflowStateStopped{},
+				err,
+			)
+		}
 
 		return markOperationInterrupted(exasolState, deployment, config.StartOperation, err)
 	}

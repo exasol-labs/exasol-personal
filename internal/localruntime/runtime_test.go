@@ -19,6 +19,7 @@ import (
 
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/localinstall"
+	"github.com/exasol/exasol-personal/internal/localports"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 )
 
@@ -286,6 +287,106 @@ func TestMacVMRuntimeStartRejectsMismatchedReportedPort(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // test runner scripts fork executable files.
+func TestMacVMRuntimeStartClassifiesConfirmedBindFailures(t *testing.T) {
+	requirePOSIXRunnerTest(t)
+
+	for _, test := range []struct {
+		name          string
+		diagnostic    string
+		portAvailable bool
+	}{
+		{name: "diagnostic", diagnostic: "address already in use", portAvailable: true},
+		{name: "post failure availability", diagnostic: "runner failed", portAvailable: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			deployment := config.NewDeploymentDir(t.TempDir())
+			eventsPath := filepath.Join(t.TempDir(), "events")
+			localRuntime := NewMacVMRuntime(
+				deployment,
+				newTestManagerForRunner(
+					t, []byte(failingV2RunnerScript(eventsPath, test.diagnostic, false)),
+				),
+			)
+			localRuntime.portAvailable = func(string, int) bool { return test.portAvailable }
+			if err := localRuntime.Prepare(
+				context.Background(), nil, nil, PrepareOptions{},
+			); err != nil {
+				t.Fatalf("prepare failed: %v", err)
+			}
+
+			err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
+				RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+				CPUCount:      2,
+				MemoryMB:      4096,
+				DataSizeGB:    100,
+			})
+
+			var unavailable *localports.UnavailableError
+			if !errors.As(err, &unavailable) || unavailable.Port != 28563 {
+				t.Fatalf("expected unavailable database port, got %v", err)
+			}
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+				t.Fatalf("expected runner command error in chain, got %v", err)
+			}
+			events, readErr := os.ReadFile(eventsPath)
+			if readErr != nil || !strings.Contains(string(events), "runner-stop\n") {
+				t.Fatalf("expected failed VM cleanup, got %q, %v", events, readErr)
+			}
+		})
+	}
+}
+
+//nolint:paralleltest // test runner scripts fork executable files.
+func TestMacVMRuntimeStartKeepsUnrelatedAndPartialFailuresGeneric(t *testing.T) {
+	requirePOSIXRunnerTest(t)
+
+	for _, test := range []struct {
+		name       string
+		diagnostic string
+		partial    bool
+	}{
+		{name: "unrelated", diagnostic: "runner image failure"},
+		{name: "partial endpoint", diagnostic: "address already in use", partial: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			deployment := config.NewDeploymentDir(t.TempDir())
+			eventsPath := filepath.Join(t.TempDir(), "events")
+			localRuntime := NewMacVMRuntime(
+				deployment,
+				newTestManagerForRunner(
+					t, []byte(failingV2RunnerScript(eventsPath, test.diagnostic, test.partial)),
+				),
+			)
+			localRuntime.portAvailable = func(string, int) bool { return true }
+			if err := localRuntime.Prepare(
+				context.Background(), nil, nil, PrepareOptions{},
+			); err != nil {
+				t.Fatalf("prepare failed: %v", err)
+			}
+
+			err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
+				RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+				CPUCount:      2,
+				MemoryMB:      4096,
+				DataSizeGB:    100,
+			})
+
+			var unavailable *localports.UnavailableError
+			if err == nil || errors.As(err, &unavailable) {
+				t.Fatalf("expected generic runner failure, got %v", err)
+			}
+			events, readErr := os.ReadFile(eventsPath)
+			if readErr != nil {
+				t.Fatalf("failed to read events: %v", readErr)
+			}
+			if strings.Contains(string(events), "runner-stop\n") {
+				t.Fatalf("generic or partial failure must not trigger bind cleanup: %s", events)
+			}
+		})
+	}
+}
+
 //nolint:paralleltest // test runner scripts fork executable fixtures.
 func TestMacVMRuntimeOpenHostShellDelegatesToRunner(t *testing.T) {
 	requirePOSIXRunnerTest(t)
@@ -513,6 +614,32 @@ EOF
     ;;
 esac
 `, eventsPath, version, hostDBPort)
+}
+
+func failingV2RunnerScript(eventsPath, diagnostic string, partial bool) string {
+	partialState := ""
+	if partial {
+		partialState = `cat > vm-state.json <<'EOF'
+{"forwards":{"db":{"guest_port":8563,"host_port":28563}}}
+EOF`
+	}
+
+	return fmt.Sprintf(`#!/bin/sh
+set -eu
+events=%q
+case "$1" in
+  version) printf 'v2.0.0-dev\n' ;;
+  init) mkdir -p vm vm-shared; printf 'runner-init\n' >> "$events" ;;
+  start)
+    printf 'runner-start\n' >> "$events"
+    %s
+    printf '%%s\n' %q >&2
+    exit 42
+    ;;
+  stop) rm -f vm-state.json; printf 'runner-stop\n' >> "$events" ;;
+  *) exit 2 ;;
+esac
+`, eventsPath, partialState, diagnostic)
 }
 
 type recordingLocalInstall struct {

@@ -5,11 +5,70 @@ package deploy
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/exasol/exasol-personal/internal/config"
+	"github.com/exasol/exasol-personal/internal/localports"
 )
+
+func TestRestoreStateAfterUnavailableLocalPortPreservesCauseAndAddsRecovery(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		want any
+	}{
+		{name: "initialized", want: &config.WorkflowStateInitialized{}},
+		{name: "stopped", want: &config.WorkflowStateStopped{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			deployment := config.NewDeploymentDir(t.TempDir())
+			state := &config.ExasolPersonalState{}
+			if err := state.SetWorkflowStateAndWrite(
+				&config.WorkflowStateOperationInProgress{Operation: config.StartOperation},
+				deployment,
+			); err != nil {
+				t.Fatalf("write initial state failed: %v", err)
+			}
+			commandErr := errors.New("runtime command failed")
+			portErr := &localports.UnavailableError{
+				Service: "db", Port: 28563, Cause: commandErr,
+			}
+
+			err := restoreStateAfterUnavailableLocalPort(
+				state, deployment, test.want, portErr,
+			)
+
+			if !errors.Is(err, commandErr) {
+				t.Fatalf("expected original command error in chain, got %v", err)
+			}
+			for _, guidance := range []string{
+				"service \"db\"", "28563",
+				"exasol config set --ports db:<available-port>",
+				"exasol config set --ports auto",
+			} {
+				if !strings.Contains(err.Error(), guidance) {
+					t.Fatalf("expected guidance %q, got %v", guidance, err)
+				}
+			}
+			persisted, readErr := config.ReadExasolPersonalState(deployment)
+			if readErr != nil {
+				t.Fatalf("read restored state failed: %v", readErr)
+			}
+			actual, readErr := persisted.GetWorkflowState()
+			if readErr != nil {
+				t.Fatalf("decode restored state failed: %v", readErr)
+			}
+			if fmt.Sprintf("%T", actual) != fmt.Sprintf("%T", test.want) {
+				t.Fatalf("restored state is %T, want %T", actual, test.want)
+			}
+		})
+	}
+}
 
 func TestWorkflowStatePermitsStart_RequiresStartForStoppedDeployment(t *testing.T) {
 	t.Parallel()
