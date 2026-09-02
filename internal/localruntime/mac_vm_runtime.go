@@ -222,6 +222,19 @@ func (runtime *MacVMRuntime) Start(
 	if err != nil {
 		return runtime.stopAfterStartFailure(ctx, runnerPath, out, outErr, err)
 	}
+	if endpoint.DBPort != hostDBPort {
+		return runtime.stopAfterStartFailure(
+			ctx,
+			runnerPath,
+			out,
+			outErr,
+			fmt.Errorf(
+				"local VM reported database port %d, expected configured port %d",
+				endpoint.DBPort,
+				hostDBPort,
+			),
+		)
+	}
 	install, err := runtime.install(runnerPath)
 	if err != nil {
 		return runtime.stopAfterStartFailure(ctx, runnerPath, out, outErr, err)
@@ -585,39 +598,7 @@ func materializeFileAtomically(sourcePath, targetPath string) error {
 }
 
 func resolveMacHostDBPort(ports string) (int, error) {
-	ports = strings.TrimSpace(ports)
-	if ports == "" {
-		return nanoDBPort, nil
-	}
-	if ports == "auto" {
-		return 0, nil
-	}
-
-	hostDBPort := nanoDBPort
-	dbPortConfigured := false
-	for rawEntry := range strings.SplitSeq(ports, ",") {
-		entry := strings.TrimSpace(rawEntry)
-		service, rawPort, found := strings.Cut(entry, ":")
-		service = strings.TrimSpace(service)
-		rawPort = strings.TrimSpace(rawPort)
-		if !found || service == "" || rawPort == "" {
-			return 0, fmt.Errorf("invalid local port mapping %q; expected <service>:<port>", entry)
-		}
-		port, err := strconv.Atoi(rawPort)
-		if err != nil || port < 0 || port > maxTCPPort {
-			return 0, fmt.Errorf("invalid local port %q for service %q", rawPort, service)
-		}
-		if service != forwardDatabaseService {
-			continue
-		}
-		if dbPortConfigured {
-			return 0, errors.New("local database port is configured more than once")
-		}
-		hostDBPort = port
-		dbPortConfigured = true
-	}
-
-	return hostDBPort, nil
+	return resolveHostPodmanDBPort(ports)
 }
 
 func runtimeEndpointFromRunnerState(state *runnerState) (*RuntimeEndpoint, error) {

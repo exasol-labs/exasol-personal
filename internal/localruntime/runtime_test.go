@@ -122,6 +122,18 @@ func TestMacVMRuntimeLifecycleUsesV2RunnerThenSharedInstall(t *testing.T) {
 	if err := localRuntime.Stop(context.Background(), nil, nil); err != nil {
 		t.Fatalf("stop failed: %v", err)
 	}
+	if err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
+		RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+		CPUCount:      4,
+		MemoryMB:      8192,
+		DataSizeGB:    100,
+	}); err != nil {
+		t.Fatalf("restart failed: %v", err)
+	}
+	restartedEndpoint, err := localRuntime.ReadEndpoints()
+	if err != nil || restartedEndpoint.DBPort != 28563 {
+		t.Fatalf("unexpected restarted endpoint %#v, err=%v", restartedEndpoint, err)
+	}
 
 	events, err := os.ReadFile(eventsPath)
 	if err != nil {
@@ -174,7 +186,10 @@ func TestMacVMRuntimeStartStopsVMWhenInstallFails(t *testing.T) {
 	}
 
 	err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
-		CPUCount: 2, MemoryMB: 4096, DataSizeGB: 100,
+		RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+		CPUCount:      2,
+		MemoryMB:      4096,
+		DataSizeGB:    100,
 	})
 	if err == nil || !strings.Contains(err.Error(), "podman failed") {
 		t.Fatalf("expected install failure, got %v", err)
@@ -213,7 +228,10 @@ func TestMacVMRuntimeStartStopsVMWhenMigrationFails(t *testing.T) {
 	}
 
 	err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
-		CPUCount: 2, MemoryMB: 4096, DataSizeGB: 100,
+		RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+		CPUCount:      2,
+		MemoryMB:      4096,
+		DataSizeGB:    100,
 	})
 	if err == nil || !strings.Contains(err.Error(), "migration failed") {
 		t.Fatalf("expected migration failure, got %v", err)
@@ -227,6 +245,44 @@ func TestMacVMRuntimeStartStopsVMWhenMigrationFails(t *testing.T) {
 	}
 	if strings.Contains(string(events), "install-start") {
 		t.Fatalf("Nano started after failed migration:\n%s", events)
+	}
+}
+
+//nolint:paralleltest // test runner scripts fork executable files.
+func TestMacVMRuntimeStartRejectsMismatchedReportedPort(t *testing.T) {
+	requirePOSIXRunnerTest(t)
+
+	deployment := config.NewDeploymentDir(t.TempDir())
+	eventsPath := filepath.Join(t.TempDir(), "events")
+	localRuntime := NewMacVMRuntime(
+		deployment,
+		newTestManagerForRunner(t, []byte(fakeV2RunnerScriptWithPort(eventsPath, 38563))),
+	)
+	install := &recordingLocalInstall{eventsPath: eventsPath}
+	localRuntime.installFactory = func(string) (localinstall.LocalInstall, error) {
+		return install, nil
+	}
+	if err := localRuntime.Prepare(context.Background(), nil, nil, PrepareOptions{}); err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+
+	err := localRuntime.Start(context.Background(), nil, nil, VMConfig{
+		RuntimeConfig: RuntimeConfig{Ports: "db:28563"},
+		CPUCount:      2,
+		MemoryMB:      4096,
+		DataSizeGB:    100,
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "expected configured port 28563") {
+		t.Fatalf("expected mismatched endpoint error, got %v", err)
+	}
+	events, readErr := os.ReadFile(eventsPath)
+	if readErr != nil {
+		t.Fatalf("failed to read lifecycle events: %v", readErr)
+	}
+	if strings.Contains(string(events), "install-start") ||
+		!strings.Contains(string(events), "runner-start\nrunner-stop\n") {
+		t.Fatalf("expected mismatched VM to stop before installation, got:\n%s", events)
 	}
 }
 
@@ -405,10 +461,18 @@ func TestMacVMRuntimeOpenHostShellPreservesRunnerFailure(t *testing.T) {
 }
 
 func fakeV2RunnerScript(eventsPath string) string {
-	return fakeV2RunnerScriptWithVersion(eventsPath, "2.0.0-dev")
+	return fakeV2RunnerScriptWithVersionAndPort(eventsPath, "2.0.0-dev", 28563)
+}
+
+func fakeV2RunnerScriptWithPort(eventsPath string, hostDBPort int) string {
+	return fakeV2RunnerScriptWithVersionAndPort(eventsPath, "2.0.0-dev", hostDBPort)
 }
 
 func fakeV2RunnerScriptWithVersion(eventsPath, version string) string {
+	return fakeV2RunnerScriptWithVersionAndPort(eventsPath, version, 28563)
+}
+
+func fakeV2RunnerScriptWithVersionAndPort(eventsPath, version string, hostDBPort int) string {
 	return fmt.Sprintf(`#!/bin/sh
 set -eu
 events=%q
@@ -448,7 +512,7 @@ EOF
     exit 2
     ;;
 esac
-`, eventsPath, version, 28563)
+`, eventsPath, version, hostDBPort)
 }
 
 type recordingLocalInstall struct {

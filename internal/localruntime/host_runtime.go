@@ -383,10 +383,10 @@ func (runtime *HostRuntime) podmanStartConfig(
 }
 
 func resolveHostPodmanDBPort(ports string) (int, error) {
-	hostDBPort := nanoDBPort
+	hostDBPort := 0
 	dbPortConfigured := false
 	if strings.TrimSpace(ports) == "" {
-		return hostDBPort, nil
+		return 0, errors.New("local database port must be configured as a positive concrete port")
 	}
 
 	for rawEntry := range strings.SplitSeq(ports, ",") {
@@ -409,6 +409,9 @@ func resolveHostPodmanDBPort(ports string) (int, error) {
 		}
 		hostDBPort = port
 		dbPortConfigured = true
+	}
+	if !dbPortConfigured {
+		return 0, errors.New("local database port must be configured as a positive concrete port")
 	}
 
 	return hostDBPort, nil
