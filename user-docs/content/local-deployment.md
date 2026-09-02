@@ -18,6 +18,19 @@ exasol install local
 The launcher starts a single-node Exasol database. Run `exasol info` at any time to display
 connection information.
 
+The launcher selects and saves a database port during initialization, preferring `8563`, and keeps
+it stable across restarts. To choose one explicitly, run `exasol install local --ports db:9563`.
+To change the port later, stop the deployment first, update the configuration, and restart it:
+
+```bash
+exasol stop
+exasol config set --ports db:9563  # or: exasol config set --ports auto
+exasol start
+```
+
+If another process claims the saved port while the deployment is stopped, startup reports the
+conflict and shows the same explicit and automatic replacement commands.
+
 On macOS, the managed virtual machine uses about half of the detected host memory by default. An
 explicitly configured memory value must be at least 4096 MB. Linux and Windows use host-managed
 resources, so the virtual-machine sizing options do not apply. The initial local database credentials
