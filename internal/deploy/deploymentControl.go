@@ -309,10 +309,6 @@ func startLocked(
 		backend,
 		externalCommandOutput,
 		options.WaitTimeoutSeconds,
-		func() bool {
-			_, stopped := workflowState.(*config.WorkflowStateStopped)
-			return stopped
-		}(),
 	)
 }
 
@@ -330,7 +326,6 @@ func runStartBackend(
 	backend deploymentBackend,
 	externalCommandOutput io.Writer,
 	waitTimeoutSeconds int,
-	restoreStoppedOnPortConflict bool,
 ) error {
 	// Register signal handler for catching interruptions and set state
 	// in case of interruption
@@ -353,7 +348,7 @@ func runStartBackend(
 	); err != nil {
 		unregister()
 		_, unavailable := localports.AsUnavailable(err)
-		if unavailable && restoreStoppedOnPortConflict {
+		if unavailable {
 			return restoreStateAfterUnavailableLocalPort(
 				exasolState,
 				deployment,

@@ -201,6 +201,7 @@ def test_running_local_configuration_requires_stop(
     assert options["ports"] == "db:18563"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="uses a POSIX fake Podman executable")
 def test_start_migrates_legacy_automatic_local_port_before_runtime(
     exasol_path: str, tmp_path: Path
 ) -> None:
@@ -238,6 +239,7 @@ def test_start_migrates_legacy_automatic_local_port_before_runtime(
     assert int(match.group(1)) > 0
 
 
+@pytest.mark.skipif(os.name == "nt", reason="uses a POSIX fake Podman executable")
 def test_local_bind_conflict_restores_stopped_state_with_recovery_guidance(
     exasol_path: str, tmp_path: Path
 ) -> None:
