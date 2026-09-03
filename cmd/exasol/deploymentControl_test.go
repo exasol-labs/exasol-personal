@@ -6,6 +6,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/exasol/exasol-personal/internal/deploy"
@@ -71,6 +73,30 @@ func TestRenderLifecycleCompletionJSON(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+//nolint:paralleltest // mutates shared terminal message queues
+func TestAddLocalPortRecoveryCallToActionQueuesStructuredRecovery(t *testing.T) {
+	resetTerminalMessages()
+	defer resetTerminalMessages()
+
+	addLocalPortRecoveryCallToAction(&deploy.LocalPortRecoveryError{
+		Service: "db",
+		Port:    28563,
+		Cause:   errors.New("runtime command failed"),
+	})
+	var stderr bytes.Buffer
+	writeTerminalCallsToAction(&stderr, true, false)
+
+	for _, expected := range []string{
+		`local service "db"`,
+		"exasol config set --ports db:<available-port>",
+		"exasol config set --ports auto",
+	} {
+		if !strings.Contains(stderr.String(), expected) {
+			t.Fatalf("expected recovery guidance %q, got %q", expected, stderr.String())
+		}
 	}
 }
 

@@ -283,6 +283,27 @@ esac
     )
     assert "exasol config set --ports db:<available-port>" in result.stderr
     assert "exasol config set --ports auto" in result.stderr
+
+    # And JSON output retains the error details without rendered recovery guidance
+    json_result = subprocess.run(
+        [
+            exasol_path,
+            "start",
+            "--json",
+            "--deployment-dir",
+            str(deployment_dir),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=environment,
+    )
+    assert json_result.returncode != 0
+    assert (
+        f'local service "db" cannot bind configured host port {test_port}'
+        in json_result.stderr
+    )
+    assert "exasol config set" not in json_result.stderr
     infrastructure = _get_active_configuration(exasol_path, deployment_dir)[
         "infrastructure"
     ]

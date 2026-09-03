@@ -29,6 +29,7 @@ func main() {
 		}
 
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		printTerminalCallsToActionAfterError()
 		os.Exit(1)
 	}
 }
