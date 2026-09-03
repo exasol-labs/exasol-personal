@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change support-deployment-reconfiguration. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Launcher SHALL persist deployment preset identity
 The launcher SHALL persist the selected infrastructure preset identity and installation preset identity when a deployment directory is initialized.
 
@@ -53,7 +55,7 @@ The `init` command SHALL initialize an empty deployment directory by extracting 
 
 ### Requirement: Config commands SHALL inspect, patch, and reset same-preset deployment parameters
 
-The `config get`, `config set`, and `config reset` commands SHALL manage configuration parameter files for the initialized deployment's existing presets without deleting local deployment state, extracted presets, backend setup artifacts, OpenTofu state, credentials, or connection metadata.
+The `config get`, `config set`, and `config reset` commands SHALL manage configuration parameter files for the initialized deployment's existing presets while preserving local deployment state, extracted presets, backend setup artifacts, OpenTofu state, credentials, and connection metadata. Configuration changes SHALL be permitted for initialized deployments and stopped local deployments.
 
 #### Scenario: Config get prints active configuration
 
@@ -76,31 +78,60 @@ The `config get`, `config set`, and `config reset` commands SHALL manage configu
 - **AND** omitted options keep their current effective values
 - **AND** the command prints the active effective configuration values on standard output
 - **AND** the command offers call-to-action guidance to run `exasol deploy` to apply the changed configuration
-- **AND** the apply guidance is not written to the deployment log file
-- **AND** the launcher does not perform backend workspace setup
+- **AND** the user sees the apply guidance in command output while the deployment log remains unchanged by that guidance
 - **AND** the launcher preserves infrastructure state files
+
+#### Scenario: Config set patches parameters for stopped local deployment
+
+- **WHEN** a user runs `exasol config set <configuration-options>` for a stopped local deployment
+- **THEN** the launcher validates and updates the supplied local configuration options
+- **AND** the launcher preserves deployment data and runtime state
+- **AND** omitted options keep their current effective values
+- **AND** the command prints the active effective configuration values on standard output
+- **AND** the command offers call-to-action guidance to run `exasol start` to apply the changed configuration
 
 #### Scenario: Config reset restores selected defaults
 
-- **WHEN** a user runs `exasol config reset <option-name> [<option-name>...]`
+- **WHEN** a user runs `exasol config reset <option-name> [<option-name>...]` for an initialized deployment
 - **THEN** the launcher resets only the requested options to their preset defaults
 - **AND** the command prints the active effective configuration values on standard output
 - **AND** the command offers call-to-action guidance to run `exasol deploy` to apply the changed configuration
 
+#### Scenario: Config reset restores stopped local defaults
+
+- **WHEN** a user runs `exasol config reset <option-name> [<option-name>...]` for a stopped local deployment
+- **THEN** the launcher resets only the requested options to their current effective local defaults
+- **AND** the command prints the active effective configuration values on standard output
+- **AND** the command offers call-to-action guidance to run `exasol start` to apply the changed configuration
+
 #### Scenario: Config reset all restores all defaults explicitly
 
-- **WHEN** a user runs `exasol config reset --all`
+- **WHEN** a user runs `exasol config reset --all` for an initialized deployment
 - **THEN** the launcher resets all configurable options to their preset defaults
 - **AND** the command prints the active effective configuration values on standard output
 - **AND** the command offers call-to-action guidance to run `exasol deploy` to apply the changed configuration
 
+#### Scenario: Config reset all restores stopped local defaults
+
+- **WHEN** a user runs `exasol config reset --all` for a stopped local deployment
+- **THEN** the launcher resets all local configuration options to their current effective local defaults
+- **AND** the command prints the active effective configuration values on standard output
+- **AND** the command offers call-to-action guidance to run `exasol start` to apply the changed configuration
+
 #### Scenario: Config set and reset refuse any state with possibly-deployed cloud resources
 
-- **WHEN** a deployment is in a state other than initialized (running, stopped, deployment-failed, interrupted during deploy or destroy, or with an operation in progress)
+- **WHEN** a cloud deployment is in a state other than initialized
 - **AND** a user runs `exasol config set <configuration-options>` or `exasol config reset <options>`
-- **THEN** the command fails without updating configuration
+- **THEN** the command fails and leaves configuration unchanged
 - **AND** the error tells the user that the deployment may already have cloud resources
 - **AND** the error tells the user to run `exasol destroy` (or `exasol remove` if the cloud resources are confirmed gone) before changing configuration and redeploying
+
+#### Scenario: Config set and reset refuse running local deployment
+
+- **WHEN** a local deployment is running or has an operation in progress
+- **AND** a user runs `exasol config set <configuration-options>` or `exasol config reset <options>`
+- **THEN** the command fails and leaves configuration unchanged
+- **AND** the error tells the user to stop the deployment before changing its configuration
 
 #### Scenario: Config commands refuse uninitialized directories
 
@@ -276,4 +307,3 @@ State-guarded lifecycle commands (`install`/`deploy`, `connect`, `start`, `stop`
   `deploy` when initialized, deployment failed, running, deploy in progress, or interrupted
   during deploy; `connect` when running)
 - **THEN** the command proceeds as before
-
