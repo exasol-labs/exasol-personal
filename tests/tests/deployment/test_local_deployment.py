@@ -6,9 +6,10 @@
 import json
 import socket
 from collections.abc import Iterator
+from ipaddress import ip_address
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Final
+from typing import Final, NamedTuple, cast
 
 import pytest
 
@@ -17,6 +18,22 @@ from framework.launcher import DeploymentConfig, Launcher
 
 AUTOMATIC_BLOCKED_PORTS: Final = (8563, 8564)
 EXPECTED_AUTOMATIC_PORT: Final = 8565
+EPHEMERAL_RESERVATION_ATTEMPTS: Final = 20
+
+
+class _LoopbackAddress(NamedTuple):
+    family: socket.AddressFamily
+    host: str
+    flowinfo: int
+    scope_id: int
+
+
+class _NoLoopbackAddressesError(OSError):
+    pass
+
+
+class _EphemeralReservationExhaustedError(OSError):
+    pass
 
 
 def _configured_db_port(deployment: Deployment) -> int:
@@ -42,20 +59,94 @@ def _reported_db_port(deployment: Deployment) -> int:
     return int(json.loads(deployment_json.read_text())["connection"]["dbPort"])
 
 
-def _reserve_port(port: int = 0) -> socket.socket:
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.bind(("127.0.0.1", port))
-    listener.listen()
+def _localhost_loopback_addresses() -> list[_LoopbackAddress]:
+    addresses: list[_LoopbackAddress] = []
+    seen: set[tuple[socket.AddressFamily, str, int]] = set()
+    for family, _, _, _, sockaddr in socket.getaddrinfo(
+        "localhost",
+        0,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+    ):
+        if family not in (socket.AF_INET, socket.AF_INET6):
+            continue
+        address_parts = cast("tuple[object, ...]", sockaddr)
+        host = str(address_parts[0])
+        normalized_host = str(ip_address(host.split("%", maxsplit=1)[0]))
+        if not ip_address(normalized_host).is_loopback:
+            continue
+        flowinfo = cast("int", address_parts[2]) if family == socket.AF_INET6 else 0
+        scope_id = cast("int", address_parts[3]) if family == socket.AF_INET6 else 0
+        address_family = socket.AddressFamily(family)
+        key = (address_family, normalized_host, scope_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        addresses.append(
+            _LoopbackAddress(address_family, normalized_host, flowinfo, scope_id)
+        )
+    if not addresses:
+        raise _NoLoopbackAddressesError
+
+    return addresses
+
+
+def _close_listeners(listeners: list[socket.socket]) -> None:
+    for listener in listeners:
+        listener.close()
+
+
+def _listen_on_loopback(address: _LoopbackAddress, port: int) -> socket.socket:
+    listener = socket.socket(address.family, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+    try:
+        bind_address: tuple[str, int] | tuple[str, int, int, int]
+        if address.family == socket.AF_INET6:
+            listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+            bind_address = (
+                address.host,
+                port,
+                address.flowinfo,
+                address.scope_id,
+            )
+        else:
+            bind_address = (address.host, port)
+        listener.bind(bind_address)
+        listener.listen()
+    except OSError:
+        listener.close()
+        raise
 
     return listener
+
+
+def _reserve_port(port: int = 0) -> tuple[list[socket.socket], int]:
+    addresses = _localhost_loopback_addresses()
+    attempts = EPHEMERAL_RESERVATION_ATTEMPTS if port == 0 else 1
+    for _ in range(attempts):
+        listeners: list[socket.socket] = []
+        selected_port = port
+        try:
+            for address in addresses:
+                listener = _listen_on_loopback(address, selected_port)
+                if selected_port == 0:
+                    selected_port = int(listener.getsockname()[1])
+                listeners.append(listener)
+
+        except OSError:
+            _close_listeners(listeners)
+            if port != 0:
+                raise
+        else:
+            return listeners, selected_port
+
+    raise _EphemeralReservationExhaustedError
 
 
 def _verify_occupied_port_recovery(deployment: Deployment) -> None:
     # Given a stopped deployment is reconfigured to an occupied port
     deployment.stop()
-    conflict = _reserve_port()
+    conflict, conflict_port = _reserve_port()
     try:
-        conflict_port = int(conflict.getsockname()[1])
         set_result = deployment.launcher.run_command(
             "config",
             deployment.deployment_dir.name,
@@ -85,7 +176,7 @@ def _verify_occupied_port_recovery(deployment: Deployment) -> None:
         assert "exasol config set --ports db:<available-port>" in captured.value.stderr
         assert "exasol config set --ports auto" in captured.value.stderr
     finally:
-        conflict.close()
+        _close_listeners(conflict)
 
     # When automatic replacement is selected after releasing the conflict
     reset_result = deployment.launcher.run_command(
@@ -195,12 +286,13 @@ def test_static_local_port_selection_reconfiguration_and_recovery(
     deployment: Deployment | None = None
     try:
         try:
-            reservations = [_reserve_port(port) for port in AUTOMATIC_BLOCKED_PORTS]
-            probe = _reserve_port(EXPECTED_AUTOMATIC_PORT)
-            probe.close()
+            for port in AUTOMATIC_BLOCKED_PORTS:
+                listeners, _ = _reserve_port(port)
+                reservations.extend(listeners)
+            probe, _ = _reserve_port(EXPECTED_AUTOMATIC_PORT)
+            _close_listeners(probe)
         except OSError as exc:
-            for reservation in reservations:
-                reservation.close()
+            _close_listeners(reservations)
             pytest.skip(f"required deterministic test ports are unavailable: {exc}")
 
         # When a local deployment is initialized with automatic ports
@@ -211,8 +303,7 @@ def test_static_local_port_selection_reconfiguration_and_recovery(
 
         # Then allocation advances deterministically and persists the concrete value
         assert _configured_db_port(deployment) == EXPECTED_AUTOMATIC_PORT
-        for reservation in reservations:
-            reservation.close()
+        _close_listeners(reservations)
         reservations.clear()
 
         # When the deployment is started, stopped, and started again
@@ -228,7 +319,6 @@ def test_static_local_port_selection_reconfiguration_and_recovery(
 
         _verify_occupied_port_recovery(deployment)
     finally:
-        for reservation in reservations:
-            reservation.close()
+        _close_listeners(reservations)
         if deployment is not None:
             deployment.cleanup()
