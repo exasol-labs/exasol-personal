@@ -438,6 +438,30 @@ func TestPodmanInstallStartClassifiesConfirmedBindFailures(t *testing.T) {
 	}
 }
 
+func TestPodmanInstallStartDoesNotClassifyVMInternalBindFailure(t *testing.T) {
+	t.Parallel()
+	skipPodmanInstallTestOnWindows(t)
+
+	install, startConfig, fixture := newPodmanInstallFixture(t)
+	startConfig.ContainerDBBindHost = ""
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
+	install.portAvailable = func(string, int) bool {
+		t.Fatal("VM-internal bind failure must not check host port availability")
+
+		return false
+	}
+
+	err := install.Start(context.Background(), nil, nil, startConfig)
+
+	if _, unavailable := localports.AsUnavailable(err); unavailable {
+		t.Fatalf("VM-internal bind failure must retain generic command failure, got %v", err)
+	}
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Fatalf("expected original command error in chain, got %v", err)
+	}
+}
+
 func TestPodmanInstallStartDoesNotClassifyPartialStartAsBindFailure(t *testing.T) {
 	t.Parallel()
 	skipPodmanInstallTestOnWindows(t)

@@ -260,6 +260,10 @@ func classifyPodmanStartBindFailure(
 	failure error,
 	diagnostic string,
 ) error {
+	if startConfig.ContainerDBBindHost == "" {
+		return failure
+	}
+
 	status, err := install.inspectContainerStatus(ctx, outErr, containerName)
 	if err != nil || status.Running {
 		return failure
