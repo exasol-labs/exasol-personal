@@ -138,3 +138,17 @@ func TestCallsToActionVisible(t *testing.T) {
 		})
 	}
 }
+
+//nolint:paralleltest // mutates shared terminal message queues
+func TestWriteTerminalCallsToActionFollowsCommandError(t *testing.T) {
+	resetTerminalMessages()
+	defer resetTerminalMessages()
+
+	addTerminalCallToAction("run `exasol config set`")
+	stderr := bytes.NewBufferString("Error: port unavailable\n")
+	writeTerminalCallsToAction(stderr, true, true)
+
+	if stderr.String() != "Error: port unavailable\n\nrun `exasol config set`\n" {
+		t.Fatalf("unexpected error and call-to-action output: %q", stderr.String())
+	}
+}

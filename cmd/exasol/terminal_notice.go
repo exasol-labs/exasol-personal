@@ -55,6 +55,14 @@ func printTerminalMessages() {
 	})
 }
 
+func printTerminalCallsToActionAfterError() {
+	writeTerminalCallsToAction(
+		os.Stderr,
+		callsToActionVisible(commonFlags.OutputJson),
+		true,
+	)
+}
+
 // Calls to action help any reader, including a non-interactive agent driving
 // the CLI, so they are suppressed only for JSON output.
 func callsToActionVisible(jsonOutput bool) bool {
@@ -77,12 +85,16 @@ func writeTerminalMessages(cfg terminalConfig) {
 		_, _ = fmt.Fprintln(cfg.stdout, message)
 	}
 	terminalOutputs = nil
-	if cfg.showCallsToAction {
-		if len(terminalCallsToAction) > 0 && hasPrecedingMessages {
-			_, _ = fmt.Fprintln(cfg.stderr)
+	writeTerminalCallsToAction(cfg.stderr, cfg.showCallsToAction, hasPrecedingMessages)
+}
+
+func writeTerminalCallsToAction(writer io.Writer, visible, separate bool) {
+	if visible {
+		if len(terminalCallsToAction) > 0 && separate {
+			_, _ = fmt.Fprintln(writer)
 		}
 		for _, message := range terminalCallsToAction {
-			_, _ = fmt.Fprintln(cfg.stderr, message)
+			_, _ = fmt.Fprintln(writer, message)
 		}
 	}
 	terminalCallsToAction = nil

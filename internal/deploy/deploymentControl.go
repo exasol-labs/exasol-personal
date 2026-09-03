@@ -175,8 +175,24 @@ func markOperationInterrupted(
 	return operationErr
 }
 
+// LocalPortRecoveryError reports an unavailable local service port after the
+// deployment's prior workflow state has been restored successfully.
+type LocalPortRecoveryError struct {
+	Service string
+	Port    int
+	Cause   error
+}
+
+func (err *LocalPortRecoveryError) Error() string { return err.Cause.Error() }
+
+func (err *LocalPortRecoveryError) Unwrap() error { return err.Cause }
+
+type workflowStateWriter interface {
+	SetWorkflowStateAndWrite(state any, deployment config.DeploymentDir) error
+}
+
 func restoreStateAfterUnavailableLocalPort(
-	exasolState *config.ExasolPersonalState,
+	exasolState workflowStateWriter,
 	deployment config.DeploymentDir,
 	workflowState any,
 	operationErr error,
@@ -186,15 +202,17 @@ func restoreStateAfterUnavailableLocalPort(
 		return operationErr
 	}
 	if err := exasolState.SetWorkflowStateAndWrite(workflowState, deployment); err != nil {
-		slog.Warn("failed to restore workflow state after local port conflict", "error", err)
+		return errors.Join(
+			operationErr,
+			fmt.Errorf("failed to restore workflow state after local port conflict: %w", err),
+		)
 	}
 
-	return fmt.Errorf(
-		"%w\nselect a replacement database port, then retry:\n"+
-			"  exasol config set --ports db:<available-port>\n"+
-			"  exasol config set --ports auto",
-		unavailable,
-	)
+	return &LocalPortRecoveryError{
+		Service: unavailable.Service,
+		Port:    unavailable.Port,
+		Cause:   operationErr,
+	}
 }
 
 //nolint:revive
