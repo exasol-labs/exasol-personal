@@ -7,12 +7,46 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/localports"
 )
+
+type unavailablePortBackend struct {
+	deploymentBackend
+
+	err error
+}
+
+func (backend unavailablePortBackend) Deploy(
+	context.Context,
+	io.Writer,
+	io.Writer,
+	DeployOptions,
+) error {
+	return backend.err
+}
+
+func (backend unavailablePortBackend) Start(
+	context.Context,
+	io.Writer,
+	io.Writer,
+	int,
+) error {
+	return backend.err
+}
+
+func newUnavailablePortBackend() unavailablePortBackend {
+	return unavailablePortBackend{err: &localports.UnavailableError{
+		Service: "db",
+		Port:    28563,
+		Cause:   errors.New("runtime command failed"),
+	}}
+}
 
 func TestRestoreStateAfterUnavailableLocalPortPreservesCauseAndMarksRecovery(t *testing.T) {
 	t.Parallel()
@@ -109,27 +143,118 @@ func TestRestoreStateAfterUnavailableLocalPortReturnsPersistenceFailure(t *testi
 	}
 }
 
-func TestWorkflowStatePermitsStart_RequiresStartForStoppedDeployment(t *testing.T) {
+func TestRunDeployBackendRestoresInitializedAfterUnavailablePort(t *testing.T) {
 	t.Parallel()
 
-	// Given: a deployment that is stopped.
-	exasolState := &config.ExasolPersonalState{}
-	if err := exasolState.SetWorkflowState(&config.WorkflowStateStopped{}); err != nil {
-		t.Fatalf("set workflow state failed: %v", err)
-	}
-
-	// When: start permission is checked.
-	decision, err := workflowStatePermitsStart(
-		context.Background(),
-		exasolState,
-		config.NewDeploymentDir(t.TempDir()),
+	deployment, state := deploymentInState(
+		t,
+		&config.WorkflowStateOperationInProgress{Operation: config.DeployOperation},
 	)
-	// Then: the caller should start the backend.
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+	if err := os.MkdirAll(deployment.InstallationDir(), 0o700); err != nil {
+		t.Fatalf("create installation dir failed: %v", err)
 	}
-	if !decision.shouldRun {
-		t.Fatal("expected stopped deployment to require backend start")
+	writeTestFile(t, deployment.InstallManifestPath(), `
+name: Test Installation
+description: test installation
+install: []
+`)
+
+	err := runDeployBackend(
+		context.Background(),
+		state,
+		deployment,
+		newUnavailablePortBackend(),
+		io.Discard,
+		DeployOptions{},
+	)
+
+	if _, recoverable := errors.AsType[*LocalPortRecoveryError](err); !recoverable {
+		t.Fatalf("expected recoverable local port error, got %v", err)
+	}
+	persisted, readErr := config.ReadExasolPersonalState(deployment)
+	if readErr != nil {
+		t.Fatalf("read restored state failed: %v", readErr)
+	}
+	workflowState := mustWorkflowState(t, persisted)
+	if _, initialized := workflowState.(*config.WorkflowStateInitialized); !initialized {
+		t.Fatalf("expected initialized state, got %T", workflowState)
+	}
+}
+
+func TestRunStartBackendRestoresStoppedAfterUnavailablePort(t *testing.T) {
+	t.Parallel()
+
+	deployment, state := deploymentInState(
+		t,
+		&config.WorkflowStateOperationInProgress{Operation: config.StartOperation},
+	)
+
+	err := runStartBackend(
+		context.Background(),
+		state,
+		deployment,
+		newUnavailablePortBackend(),
+		io.Discard,
+		0,
+	)
+
+	if _, recoverable := errors.AsType[*LocalPortRecoveryError](err); !recoverable {
+		t.Fatalf("expected recoverable local port error, got %v", err)
+	}
+	persisted, readErr := config.ReadExasolPersonalState(deployment)
+	if readErr != nil {
+		t.Fatalf("read restored state failed: %v", readErr)
+	}
+	workflowState := mustWorkflowState(t, persisted)
+	if _, stopped := workflowState.(*config.WorkflowStateStopped); !stopped {
+		t.Fatalf("expected stopped state, got %T", workflowState)
+	}
+}
+
+func TestWorkflowStatePermitsStart_RunsRecoverableStates(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name  string
+		state any
+	}{
+		{name: "stopped", state: &config.WorkflowStateStopped{}},
+		{
+			name:  "operation_in_progress_start",
+			state: &config.WorkflowStateOperationInProgress{Operation: config.StartOperation},
+		},
+		{
+			name: "interrupted_during_start",
+			state: &config.WorkflowStateInterrupted{
+				InterruptedDuringOperation: config.StartOperation,
+			},
+		},
+		{
+			name: "interrupted_during_stop",
+			state: &config.WorkflowStateInterrupted{
+				InterruptedDuringOperation: config.StopOperation,
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			exasolState := &config.ExasolPersonalState{}
+			if err := exasolState.SetWorkflowState(test.state); err != nil {
+				t.Fatalf("set workflow state failed: %v", err)
+			}
+
+			decision, err := workflowStatePermitsStart(
+				context.Background(),
+				exasolState,
+				config.NewDeploymentDir(t.TempDir()),
+			)
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			if !decision.shouldRun {
+				t.Fatalf("expected %s deployment to require backend start", test.name)
+			}
+		})
 	}
 }
 

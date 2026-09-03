@@ -151,11 +151,6 @@ func deployLocked(
 	if err := WorkflowStatePermitsDeploy(exasolState, deployment); err != nil {
 		return err
 	}
-	workflowState, err := exasolState.GetWorkflowState()
-	if err != nil {
-		return err
-	}
-	_, restoreInitializedOnPortConflict := workflowState.(*config.WorkflowStateInitialized)
 	infrastructureManifest, err := config.ReadInfrastructureManifest(deployment)
 	if err != nil {
 		return err
@@ -191,7 +186,6 @@ func deployLocked(
 		backend,
 		externalCommandOutput,
 		options,
-		restoreInitializedOnPortConflict,
 	)
 }
 
@@ -209,7 +203,6 @@ func runDeployBackend(
 	backend deploymentBackend,
 	externalCommandOutput io.Writer,
 	options DeployOptions,
-	restoreInitializedOnPortConflict bool,
 ) error {
 	// Register signal handler for catching interruptions and set state
 	// in case of interruption
@@ -239,7 +232,7 @@ func runDeployBackend(
 	); err != nil {
 		unregister()
 		_, unavailable := localports.AsUnavailable(err)
-		if unavailable && restoreInitializedOnPortConflict {
+		if unavailable {
 			return restoreStateAfterUnavailableLocalPort(
 				exasolState,
 				deployment,
