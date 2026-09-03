@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -249,10 +251,22 @@ func TestWorkflowStatePermitsConfigure_GuidesActiveLocalDeploymentToStop(t *test
 	}
 }
 
-func TestStoppedLocalDeploymentCanBeSetAndReset(t *testing.T) {
+func TestStoppedLocalDeploymentCanBeSetAndResetAll(t *testing.T) {
 	t.Parallel()
 
 	ctx := testManagerContext(t)
+	capabilities := localCapabilitiesForPlatform(runtime.GOOS, runtime.GOARCH)
+	defaults := defaultLocalRuntimeConfig(detectLocalHostMemoryMB(ctx))
+	infraVars := map[string]string{localPortsConfigName: "db:18563"}
+	if capabilities.vmSizing {
+		customMemoryMB := localMinimumMemoryMB
+		if customMemoryMB == defaults.memoryMB {
+			customMemoryMB++
+		}
+		infraVars[localCPUCountConfigName] = strconv.Itoa(defaults.cpuCount + 1)
+		infraVars[localMemoryMBConfigName] = strconv.Itoa(customMemoryMB)
+		infraVars[localDataSizeGBConfigName] = strconv.Itoa(defaults.dataSizeGB + 1)
+	}
 	deployment := config.NewDeploymentDir(t.TempDir())
 	if err := InitDeployment(
 		ctx,
@@ -260,7 +274,7 @@ func TestStoppedLocalDeploymentCanBeSetAndReset(t *testing.T) {
 		InitOptions{
 			InfrastructurePreset: PresetRef{Name: "local"},
 			InstallationPreset:   PresetRef{Name: "local"},
-			InfraVars:            map[string]string{localPortsConfigName: "db:18563"},
+			InfraVars:            infraVars,
 			InstallVars:          map[string]string{},
 			CurrentVersion:       "0.0.0",
 		},
@@ -297,8 +311,8 @@ func TestStoppedLocalDeploymentCanBeSetAndReset(t *testing.T) {
 	reset, err := ResetDeploymentConfiguration(
 		ctx,
 		deployment,
-		[]string{localPortsConfigName},
-		false,
+		nil,
+		true,
 	)
 	if err != nil {
 		t.Fatalf("config reset failed: %v", err)
@@ -313,6 +327,18 @@ func TestStoppedLocalDeploymentCanBeSetAndReset(t *testing.T) {
 	portMappings, _, err := parseLocalPortMappings(resetPorts.RawValue)
 	if err != nil || portMappings[localDatabaseService] <= 0 {
 		t.Fatalf("expected a positive concrete reset port, got %q: %v", resetPorts.RawValue, err)
+	}
+	if capabilities.vmSizing {
+		for name, expected := range map[string]int{
+			localCPUCountConfigName:   defaults.cpuCount,
+			localMemoryMBConfigName:   defaults.memoryMB,
+			localDataSizeGBConfigName: defaults.dataSizeGB,
+		} {
+			value := deploymentConfigValueByName(t, reset.Infrastructure.Options, name)
+			if value.RawValue != strconv.Itoa(expected) {
+				t.Fatalf("expected reset %s %d, got %#v", name, expected, value)
+			}
+		}
 	}
 	state, err = config.ReadExasolPersonalState(deployment)
 	if err != nil {
