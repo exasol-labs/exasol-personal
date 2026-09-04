@@ -1,16 +1,13 @@
 // Copyright 2026 Exasol AG
 // SPDX-License-Identifier: MIT
 
-// Package localports defines errors and conservative bind-failure
-// classification shared by local runtime and installation implementations.
+// Package localports defines errors and bind-failure classification shared by
+// local runtime and installation implementations.
 package localports
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
 	"strings"
 )
 
@@ -34,48 +31,30 @@ func (err *UnavailableError) Error() string {
 func (err *UnavailableError) Unwrap() error { return err.Cause }
 
 // ClassifyBindFailure returns a typed error only when command diagnostics name
-// a bind conflict or a post-failure probe confirms that the requested port is
-// unavailable. Other failures retain their original identity unchanged.
+// a bind conflict. Other failures retain their original identity unchanged.
 func ClassifyBindFailure(
 	service string,
 	port int,
 	cause error,
 	diagnostic string,
-	available func() bool,
 ) error {
 	if cause == nil {
 		return nil
 	}
-	if bindConflictDiagnostic(diagnostic) || (available != nil && !available()) {
+	if bindConflictDiagnostic(diagnostic) {
 		return &UnavailableError{Service: service, Port: port, Cause: cause}
 	}
 
 	return cause
 }
 
-// IsAvailable reports whether a TCP listener can currently bind host and port.
-func IsAvailable(host string, port int) bool {
-	listener, err := (&net.ListenConfig{}).Listen(
-		context.Background(),
-		"tcp",
-		net.JoinHostPort(host, strconv.Itoa(port)),
-	)
-	if err != nil {
-		return false
-	}
-	_ = listener.Close()
-
-	return true
-}
-
 func bindConflictDiagnostic(diagnostic string) bool {
 	diagnostic = strings.ToLower(diagnostic)
 	for _, marker := range []string{
 		"address already in use",
+		"bind: address in use",
 		"port is already allocated",
 		"port already in use",
-		"failed to bind",
-		"bind: address in use",
 	} {
 		if strings.Contains(diagnostic, marker) {
 			return true

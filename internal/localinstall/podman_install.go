@@ -48,7 +48,6 @@ type PodmanInstall struct {
 	resolveImage  func(context.Context) (RuntimePath, error)
 	slcStagingDir RuntimePath
 	slcStatusPath RuntimePath
-	portAvailable func(string, int) bool
 }
 
 func NewPodmanInstall(
@@ -107,7 +106,6 @@ func NewPodmanInstallWithEnvironment(
 		resolveImage:  resolveImage,
 		slcStagingDir: slcStagingDir,
 		slcStatusPath: slcStatusPath,
-		portAvailable: localports.IsAvailable,
 	}
 }
 
@@ -268,19 +266,12 @@ func classifyPodmanStartBindFailure(
 	if err != nil || status.Running {
 		return failure
 	}
-	available := install.portAvailable
-	if available == nil {
-		available = localports.IsAvailable
-	}
 
 	return localports.ClassifyBindFailure(
 		"db",
 		startConfig.ContainerDBPort,
 		failure,
 		diagnostic,
-		func() bool {
-			return available(startConfig.ContainerDBBindHost, startConfig.ContainerDBPort)
-		},
 	)
 }
 
