@@ -103,6 +103,9 @@ func (b *localBackend) Prepare(
 	if err := b.ValidateEnvironment(); err != nil {
 		return err
 	}
+	if err := b.normalizeAutomaticPorts(ctx); err != nil {
+		return err
+	}
 
 	return b.runtime.Prepare(ctx, out, outErr, options)
 }
@@ -115,30 +118,7 @@ func (*localBackend) SetupWorkspace(_ context.Context) error {
 	return nil
 }
 
-// MigrateConfigurationBeforeStart normalizes legacy automatic mappings at the
-// last safe point before a stopped runtime starts. Configure performs the
-// allocation and persists the result only after allocation succeeds.
-func (b *localBackend) MigrateConfigurationBeforeStart(ctx context.Context) error {
-	if b.manifest == nil {
-		return errors.New("local infrastructure manifest is missing")
-	}
-	rawPorts := ""
-	if b.manifest.Local != nil {
-		rawPorts = b.manifest.Local.Ports
-	}
-	if !legacyAutomaticLocalPorts(rawPorts) {
-		return nil
-	}
-
-	return b.Configure(
-		ctx,
-		map[string]string{localPortsConfigName: rawPorts},
-		DeploymentMetadata{},
-		DeploymentLayout{},
-	)
-}
-
-func legacyAutomaticLocalPorts(raw string) bool {
+func localPortsNeedNormalization(raw string) bool {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || strings.EqualFold(trimmed, "auto") {
 		return true
@@ -148,7 +128,7 @@ func legacyAutomaticLocalPorts(raw string) bool {
 		return false
 	}
 	for _, service := range localServiceCatalog {
-		if port, configured := mappings[service.name]; configured && port == 0 {
+		if port, configured := mappings[service.name]; !configured || port == 0 {
 			return true
 		}
 	}
@@ -630,6 +610,28 @@ func (b *localBackend) Destroy(
 	out, outErr io.Writer,
 ) error {
 	return destroyLocalRuntime(ctx, b.runtime, out, outErr)
+}
+
+// normalizeAutomaticPorts persists legacy automatic mappings before any local
+// runtime preparation or launch. Configure writes only after allocation succeeds.
+func (b *localBackend) normalizeAutomaticPorts(ctx context.Context) error {
+	if b.manifest == nil {
+		return errors.New("local infrastructure manifest is missing")
+	}
+	rawPorts := ""
+	if b.manifest.Local != nil {
+		rawPorts = b.manifest.Local.Ports
+	}
+	if !localPortsNeedNormalization(rawPorts) {
+		return nil
+	}
+
+	return b.Configure(
+		ctx,
+		map[string]string{localPortsConfigName: rawPorts},
+		DeploymentMetadata{},
+		DeploymentLayout{},
+	)
 }
 
 // deployOrStart resolves runtime config and starts an already-prepared
