@@ -14,8 +14,29 @@ updates:
 
     open-pull-requests-limit: 5
 
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/tests"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-type: "all"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+    cooldown:
+      semver-patch-days: 21
+      semver-minor-days: 28
+    groups:
+      python-weekly-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "uv"
+    directory: "/user-docs"
     schedule:
       interval: "weekly"
     allow:

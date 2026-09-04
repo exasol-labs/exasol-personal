@@ -9,16 +9,22 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=2.3.0,<3.0.0",
     "pytest>=9,<10",
-    "ruff>=0.16,<0.17",
+    "ruff>=0.16.2,<0.17.0",
 ]
 
 [tool.uv]
 package = false
-required-version = "==0.11.21"
+required-version = ">=0.11.21"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+explicit_package_bases = true
 
 [tool.ruff]
 target-version = "py313"

@@ -1,5 +1,5 @@
 name: setup-python
-description: Setup Python and Poetry
+description: Setup Python and uv
 runs:
   using: "composite"
   steps:
@@ -11,29 +11,17 @@ runs:
       with:
         python-version: '3.13'
 
-    - name: Configure cache directories
-      shell: bash
-      run: |
-        poetry_cache="${RUNNER_TEMP}/pypoetry-cache"
-        pip_cache="${RUNNER_TEMP}/pip-cache"
-
-        mkdir -p "${poetry_cache}" "${pip_cache}"
-
-        {
-          echo "POETRY_CACHE_DIR=${poetry_cache}"
-          echo "PIP_CACHE_DIR=${pip_cache}"
-        } >> "${GITHUB_ENV}"
-
-    - name: Cache Poetry dependencies
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    - name: Set up uv
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       with:
-        path: |
-          ${{ env.POETRY_CACHE_DIR }}
-          ${{ env.PIP_CACHE_DIR }}
-        key: poetry-venv-${{ runner.os }}-${{ hashFiles('tests/poetry.lock') }}
-        restore-keys: |
-          poetry-venv-${{ runner.os }}-
+        version: ">=0.11.21"
+        resolution-strategy: lowest
+        python-version: "3.13"
+        enable-cache: true
+        cache-dependency-glob: |
+          tests/uv.lock
+          user-docs/uv.lock
 
-    - name: Install test dependencies (Poetry)
+    - name: Install test dependencies
       shell: bash
       run: task tests-setup

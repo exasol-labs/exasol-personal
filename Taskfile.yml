@@ -142,9 +142,9 @@ tasks:
 
   deps-update-python:
     desc: Update all Python dependencies
-    dir: '{{.USER_WORKING_DIR}}/{{.TESTS_DIR}}'
     cmds:
-      - poetry update
+      - uv lock --project tests --upgrade
+      - uv lock --project user-docs --upgrade
 
   deps-update:
     desc: Update all Go dependencies
@@ -152,20 +152,11 @@ tasks:
       - deps-update-golang
       - deps-update-python
 
-  deps-install-poetry:
-    cmds:
-      - python3 -m pip install poetry
-    status:
-      - which poetry
-
   tests-setup:
     desc: Install required test tools
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry sync
-    # There is no `poetry sync --status` to check if the venv is up-to-date, so no `status:` here
-    deps:
-      - deps-install-poetry
+      - uv sync --locked --no-build
 
   tests-unit:
     desc: 'Run unit tests. TEST is a regex for `go test -run` (substring match, e.g. TEST=Ready). COVERAGE=true collects a coverage profile.'
@@ -201,7 +192,7 @@ tasks:
       GOCOVERDIR: '{{if eq .COVERAGE "true"}}{{.GOCOVERDIR_PATH}}{{end}}'
     cmds:
       - '{{if eq .COVERAGE "true"}}rm -rf {{.GOCOVERDIR_PATH}} && mkdir -p {{.GOCOVERDIR_PATH}}{{end}}'
-      - poetry run pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}integration
+      - uv run --locked --no-build pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}integration
       - '{{if eq .COVERAGE "true"}}go tool covdata textfmt -i={{.GOCOVERDIR_PATH}} -o={{.ROOT_PATH}}{{.SEP}}coverage-integration.out{{end}}'
 
   tests-deployment:
@@ -221,7 +212,7 @@ tasks:
     cmds:
       - rm -rf {{.GOCOVERDIR_PATH}} && mkdir -p {{.GOCOVERDIR_PATH}}
       - |
-        poetry run pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} {{if .TEST}}-k "{{.TEST}}"{{end}} {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
+        uv run --locked --no-build pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} {{if .TEST}}-k "{{.TEST}}"{{end}} {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
 
   tests-deployment-infrastructure:
     desc: Run infrastructure-focused deployment tests
@@ -237,7 +228,7 @@ tasks:
     cmds:
       - rm -rf {{.GOCOVERDIR_PATH}} && mkdir -p {{.GOCOVERDIR_PATH}}
       - |
-        poetry run pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} -m "infrastructure_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
+        uv run --locked --no-build pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} -m "infrastructure_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
 
   tests-deployment-installation:
     desc: Run installation-focused end-to-end tests
@@ -253,7 +244,7 @@ tasks:
     cmds:
       - rm -rf {{.GOCOVERDIR_PATH}} && mkdir -p {{.GOCOVERDIR_PATH}}
       - |
-        poetry run pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} -m "installation_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
+        uv run --locked --no-build pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra={{.INFRA}} {{if .STACKIT_PROJECT_ID}}--stackit-project-id={{.STACKIT_PROJECT_ID}}{{end}} -m "installation_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
 
   tests-deployment-local:
     desc: Run local deployment tests on supported Linux, Windows, and macOS hosts
@@ -266,7 +257,7 @@ tasks:
       GOCOVERDIR: '{{.GOCOVERDIR_PATH}}'
     cmds:
       - rm -rf {{.GOCOVERDIR_PATH}} && mkdir -p {{.GOCOVERDIR_PATH}}
-      - poetry run pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra=local -m "local_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
+      - uv run --locked --no-build pytest -vv --exasol-path={{.BUILD_DIR}}{{.SEP}}{{.BINARY_NAME}} --infra=local -m "local_e2e" {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}deployment {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}e2e {{.TESTS_DIR}}{{.SEP}}tests{{.SEP}}chaos
 
   lint-ruff:
     desc: Run ruff check
@@ -286,7 +277,7 @@ tasks:
       - tests-setup
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run ruff check
+      - uv run --locked --no-build ruff check
 
   lint-ruff-check-fix:
     desc: Run ruff check and apply automatic fixes
@@ -294,7 +285,7 @@ tasks:
       - tests-setup
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run ruff check --fix
+      - uv run --locked --no-build ruff check --fix
 
   lint-ruff-format:
     desc: Run ruff format
@@ -302,7 +293,7 @@ tasks:
       - tests-setup
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run ruff format --check
+      - uv run --locked --no-build ruff format --check
 
   lint-ruff-format-fix:
     desc: Run ruff format and apply automatic fixes
@@ -310,14 +301,14 @@ tasks:
       - tests-setup
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run ruff format
+      - uv run --locked --no-build ruff format
 
   lint-mypy:
     desc: Run mypy check
     deps: [tests-setup]
     dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run mypy {{.TESTS_DIR}}
+      - uv run --locked --no-build mypy {{.TESTS_DIR}}
 
   lint-golang:
     desc: Run golangci-lint linters and verify go.mod/go.sum are tidy
@@ -361,6 +352,7 @@ tasks:
       - task: lint-golang
       - task: lint-ruff
       - task: lint-mypy
+      - task: docs-lint
       - task: lint-terraform
       - task: lint-licenses
 
@@ -381,11 +373,11 @@ tasks:
 
   fmt-ruff:
     desc: Format Python code with Ruff
-    deps: [tests-setup]
-    dir: '{{.TESTS_DIR}}'
     cmds:
-      - poetry run ruff format
-      - poetry run ruff check --fix
+      - uv run --project tests --locked --no-build ruff format tests
+      - uv run --project tests --locked --no-build ruff check --fix tests
+      - uv run --project user-docs --locked --no-build ruff format user-docs/scripts user-docs/tests
+      - uv run --project user-docs --locked --no-build ruff check --fix user-docs/scripts user-docs/tests
 
   fmt-terraform:
     desc: Format Terraform code with OpenTofu
@@ -403,7 +395,8 @@ tasks:
     desc: Run all tasks (lint, build, test)
     cmds:
       - task: lint
-      - task: docs-check
+      - task: docs-test
+      - task: docs-build
       - task: build
       - task: tests-unit
       - task: tests-integration

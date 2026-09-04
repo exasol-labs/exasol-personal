@@ -91,7 +91,7 @@ and each test is stamped with a kind marker matching its directory (`-m deployme
 task tests-setup
 ```
 
-This installs Poetry and Python dependencies needed for integration and deployment tests.
+This synchronizes the locked uv environment needed for integration and deployment tests.
 All integration and deployment tests are written using [pytest](https://pytest.org/).
 
 ### Running Tests
@@ -129,33 +129,33 @@ If you need more control over pytest execution:
 cd tests
 
 # Run all integration tests
-poetry run pytest --exasol-path=../bin/exasol tests/integration
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/integration
 
 # Run specific test file
-poetry run pytest --exasol-path=../bin/exasol tests/integration/test_cli.py
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/integration/test_cli.py
 
 # Run specific test
-poetry run pytest --exasol-path=../bin/exasol tests/integration/test_cli.py::test_init_idempotent
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/integration/test_cli.py::test_init_idempotent
 
 # Run with verbose output
-poetry run pytest --exasol-path=../bin/exasol tests/integration -v
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/integration -v
 
 # Run all cloud tests (default: AWS preset)
 export AWS_PROFILE=your-profile
-poetry run pytest --exasol-path=../bin/exasol tests/deployment tests/e2e tests/chaos
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/deployment tests/e2e tests/chaos
 
 # Run all cloud tests with Azure preset
-poetry run pytest --exasol-path=../bin/exasol --infra=azure tests/deployment tests/e2e tests/chaos
+uv run --locked --no-build pytest --exasol-path=../bin/exasol --infra=azure tests/deployment tests/e2e tests/chaos
 
 # Run a single kind (directory or marker both work)
-poetry run pytest --exasol-path=../bin/exasol tests/e2e
-poetry run pytest --exasol-path=../bin/exasol -m "chaos" tests/deployment tests/e2e tests/chaos
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/e2e
+uv run --locked --no-build pytest --exasol-path=../bin/exasol -m "chaos" tests/deployment tests/e2e tests/chaos
 
 # Run only infrastructure-focused tests
-poetry run pytest --exasol-path=../bin/exasol --infra=aws -m "infrastructure_e2e" tests/deployment tests/e2e tests/chaos
+uv run --locked --no-build pytest --exasol-path=../bin/exasol --infra=aws -m "infrastructure_e2e" tests/deployment tests/e2e tests/chaos
 
 # Run only installation-focused end-to-end tests
-poetry run pytest --exasol-path=../bin/exasol --infra=aws -m "installation_e2e" tests/deployment tests/e2e tests/chaos
+uv run --locked --no-build pytest --exasol-path=../bin/exasol --infra=aws -m "installation_e2e" tests/deployment tests/e2e tests/chaos
 ```
 
 ### Seeing the commands a test runs
@@ -165,7 +165,7 @@ invocations. Raise it to `DEBUG` and every command the suite executes is printed
 before it starts, with its working directory when one is set:
 
 ```bash
-poetry run pytest --exasol-path=../bin/exasol tests/integration --log-cli-level=DEBUG
+uv run --locked --no-build pytest --exasol-path=../bin/exasol tests/integration --log-cli-level=DEBUG
 ```
 
 ```

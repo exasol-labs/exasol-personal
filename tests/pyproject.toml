@@ -6,22 +6,23 @@ authors = [{ name = "Exasol", email = "entwicklung@exasol.com" }]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "pytest (>=9.1.1,<10.0.0)",
-  "websocket-client (>=1.8.0,<2.0.0)",
-  "pydantic (>=2.12.0,<3.0.0)",
-  "semver (>=3.0.4,<4.0.0)",
-  "requests (>=2.34.2,<3.0.0)",
+  "pytest>=9.1.1,<10.0.0",
+  "websocket-client>=1.8.0,<2.0.0",
+  "pydantic>=2.12.0,<3.0.0",
+  "semver>=3.0.4,<4.0.0",
+  "requests>=2.34.2,<3.0.0",
 ]
 
-[tool.poetry]
-packages = [{ include = "tests" }]
+[dependency-groups]
+dev = [
+  "mypy>=2.3.0,<3.0.0",
+  "ruff>=0.16.2,<0.17.0",
+  "types-requests>=2.33.0,<3.0.0",
+]
 
-
-[tool.poetry.group.dev.dependencies]
-mypy = "^2.3.0"
-ruff = "^0.16.2"
-pydantic = { extras = ["mypy"], version = "^2.11.7" }
-types-requests = "^2.33.0"
+[tool.uv]
+package = false
+required-version = ">=0.11.21"
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -96,7 +97,3 @@ ignore = [
   # Conflicts with formatter
   "COM812", # The following rules may cause conflicts when used with the formatter: `COM812`
 ]
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"

@@ -12,7 +12,7 @@ Runs automatically on every push to `main` and on pull requests targeting `main`
 line under `release/`:
 
 - **Go Linting** - Runs `golangci-lint` and `tflint`
-- **Python Linting** - Runs `ruff` and `mypy` on test code
+- **Python Linting** - Runs `ruff` and `mypy` on integration tests and documentation tooling
 - **Unit Tests** - Runs Go unit tests with coverage
 - **Integration Tests** - Runs Python integration tests on Linux and Windows
 

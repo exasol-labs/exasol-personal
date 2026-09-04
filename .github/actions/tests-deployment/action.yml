@@ -27,28 +27,16 @@ runs:
       uses: ./.github/actions/setup-task
     - name: Install uv (system Python path)
       if: ${{ inputs.system-python == 'true' }}
-      uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        version: ">=0.11.21"
+        resolution-strategy: lowest
     - name: Install Python 3.13 (system Python path)
       if: ${{ inputs.system-python == 'true' }}
       shell: bash
       run: |
         uv python install 3.13
         echo "$(dirname "$(uv python find 3.13)")" >> "$GITHUB_PATH"
-    - name: Install Poetry (system Python path)
-      if: ${{ inputs.system-python == 'true' }}
-      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
-      with:
-        version: "2.4.1"
-    - name: Select Python 3.13 for Poetry
-      if: ${{ inputs.system-python == 'true' }}
-      shell: bash
-      working-directory: tests
-      run: |
-        python_path="$(uv python find 3.13)"
-        echo "Using Python: ${python_path}"
-        "${python_path}" --version
-        poetry env use "${python_path}"
-        poetry env info
     - name: Install test dependencies (system Python path)
       if: ${{ inputs.system-python == 'true' }}
       shell: bash

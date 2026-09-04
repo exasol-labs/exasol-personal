@@ -33,7 +33,7 @@ The project uses the following tools (automatically managed by Go's tool depende
 - **[golangci-lint](https://golangci-lint.run/)** - Go linting and static analysis
 - **[counterfeiter](https://github.com/maxbrunsfeld/counterfeiter)** - Mock generation for testing
 - **[tflint](https://github.com/terraform-linters/tflint)** - Terraform/OpenTofu linting
-- **[Poetry](https://python-poetry.org/)** - Python dependency management for tests
+- **[uv](https://docs.astral.sh/uv/)** - Python dependency management
 - **[pytest](https://pytest.org/)** - Python testing framework
 - **[ruff](https://docs.astral.sh/ruff/)** - Python linting and formatting
 - **[mypy](https://mypy-lang.org/)** - Python type checking
@@ -284,7 +284,7 @@ task lint-golang-fix
 Configuration files:
 - `.golangci.yml` - Go linting configuration
 - `.tflint.hcl` - Terraform/OpenTofu linting
-- `tests/pyproject.toml` - Python linting and type checking
+- `tests/pyproject.toml` and `user-docs/pyproject.toml` - Python linting and type checking
 
 ### Best Practices
 
