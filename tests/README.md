@@ -91,7 +91,7 @@ and each test is stamped with a kind marker matching its directory (`-m deployme
 task tests-setup
 ```
 
-This synchronizes the locked uv environment needed for integration and deployment tests.
+This synchronizes the locked uv workspace environment needed for integration and deployment tests.
 All integration and deployment tests are written using [pytest](https://pytest.org/).
 
 ### Running Tests

@@ -37,7 +37,7 @@ runs:
       run: |
         uv python install 3.13
         echo "$(dirname "$(uv python find 3.13)")" >> "$GITHUB_PATH"
-    - name: Install test dependencies (system Python path)
+    - name: Install Python test dependencies (system Python path)
       if: ${{ inputs.system-python == 'true' }}
       shell: bash
       run: task tests-setup

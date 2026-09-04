@@ -10,13 +10,9 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=2.3.0,<3.0.0",
-    "pytest>=9,<10",
+    "pytest>=9.1.1,<10.0.0",
     "ruff>=0.16.2,<0.17.0",
 ]
-
-[tool.uv]
-package = false
-required-version = ">=0.11.21"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -27,17 +23,11 @@ strict = true
 explicit_package_bases = true
 
 [tool.ruff]
-target-version = "py313"
+extend = "../pyproject.toml"
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-    "COM812", # Conflicts with the formatter.
-    "D100",   # The small script and tests do not need module docstrings.
-    "D101",   # The domain exception name is self-explanatory.
-    "D103",   # Test names already describe their behavior.
-    "D203",   # Conflicts with D211.
-    "D213",   # Conflicts with D212.
-    "S101",   # Pytest assertions are intentional.
-    "S603",   # Commands are executed without a shell.
+extend-ignore = [
+    "D100", # The small script and tests do not need module docstrings.
+    "D101", # The domain exception name is self-explanatory.
+    "D103", # Test names already describe their behavior.
 ]

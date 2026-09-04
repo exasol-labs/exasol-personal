@@ -6,44 +6,40 @@ authors = [{ name = "Exasol", email = "entwicklung@exasol.com" }]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "pytest>=9.1.1,<10.0.0",
-  "websocket-client>=1.8.0,<2.0.0",
-  "pydantic>=2.12.0,<3.0.0",
-  "semver>=3.0.4,<4.0.0",
-  "requests>=2.34.2,<3.0.0",
+    "pytest>=9.1.1,<10.0.0",
+    "websocket-client>=1.8.0,<2.0.0",
+    "pydantic>=2.12.0,<3.0.0",
+    "semver>=3.0.4,<4.0.0",
+    "requests>=2.34.2,<3.0.0",
 ]
 
 [dependency-groups]
 dev = [
-  "mypy>=2.3.0,<3.0.0",
-  "ruff>=0.16.2,<0.17.0",
-  "types-requests>=2.33.0,<3.0.0",
+    "mypy>=2.3.0,<3.0.0",
+    "ruff>=0.16.2,<0.17.0",
+    "types-requests>=2.33.0,<3.0.0",
 ]
-
-[tool.uv]
-package = false
-required-version = ">=0.11.21"
 
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"
 log_cli_format = "%(asctime)s %(levelname)s %(funcName)s: %(message)s"
 markers = [
-  # Test-kind markers, stamped automatically by the directory a test lives in
-  # (see tests/tests/conftest.py). Each test belongs to exactly one kind.
-  "integration: Offline CLI tests that need no cloud deployment.",
-  "deployment: Cloud provisioning and lifecycle tests.",
-  "e2e: Connect / query / output workflow tests against a running deployment.",
-  "chaos: Fault-injection, interruption, and recovery tests.",
-  # Behavioral markers used for provider selection and CI filtering.
-  "launcher_tests: Tests that validate launcher CLI and behavioral contracts without real cloud deployment.",
-  "installation_e2e: End-to-end tests focused on installation-level behavior.",
-  "infrastructure_e2e: End-to-end tests focused on cloud infrastructure behavior.",
-  "local_e2e: End-to-end tests for local deployments.",
-  "provider_aws: Tests that assert AWS-specific behavior.",
-  "provider_azure: Tests that assert Azure-specific behavior.",
-  "provider_stackit: Tests that assert STACKIT-specific behavior.",
-  "stress: Long-running stress/scale tests (e.g. large data import).",
+    # Test-kind markers, stamped automatically by the directory a test lives in
+    # (see tests/tests/conftest.py). Each test belongs to exactly one kind.
+    "integration: Offline CLI tests that need no cloud deployment.",
+    "deployment: Cloud provisioning and lifecycle tests.",
+    "e2e: Connect / query / output workflow tests against a running deployment.",
+    "chaos: Fault-injection, interruption, and recovery tests.",
+    # Behavioral markers used for provider selection and CI filtering.
+    "launcher_tests: Tests that validate launcher CLI and behavioral contracts without real cloud deployment.",
+    "installation_e2e: End-to-end tests focused on installation-level behavior.",
+    "infrastructure_e2e: End-to-end tests focused on cloud infrastructure behavior.",
+    "local_e2e: End-to-end tests for local deployments.",
+    "provider_aws: Tests that assert AWS-specific behavior.",
+    "provider_azure: Tests that assert Azure-specific behavior.",
+    "provider_stackit: Tests that assert STACKIT-specific behavior.",
+    "stress: Long-running stress/scale tests (e.g. large data import).",
 ]
 
 [tool.mypy]
@@ -68,32 +64,19 @@ disallow_any_generics = true
 disallow_any_unimported = true
 disallow_any_decorated = true
 disallow_subclassing_any = true
-
 plugins = ["pydantic.mypy"]
 
 [tool.ruff]
-target-version = "py313"
+extend = "../pyproject.toml"
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-  # These force us to document every
-  # single function and module.
-  "D100",
-  "D101",
-  "D102",
-  "D103",
-  "D104",
-  "D107",
-
-  # Conflicting rules
-  "D203", # `incorrect-blank-line-before-class` (D203) and `no-blank-line-before-class` (D211) are incompatible.
-  "D213", # `multi-line-summary-first-line` (D212) and `multi-line-summary-second-line` (D213) are incompatible.
-
-  "S603",   # Frequent false positives
-  "S101",   # Forbids asserts that we need
-  "LOG015", # Forbids usage of the global logger
-
-  # Conflicts with formatter
-  "COM812", # The following rules may cause conflicts when used with the formatter: `COM812`
+extend-ignore = [
+    # Test modules, classes, and functions do not need docstrings.
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D107",
+    "LOG015", # Global logging is intentional in test infrastructure.
 ]

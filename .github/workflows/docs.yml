@@ -130,7 +130,7 @@ jobs:
           resolution-strategy: lowest
           python-version: "3.13"
           enable-cache: true
-          cache-dependency-glob: user-docs/uv.lock
+          cache-dependency-glob: uv.lock
 
       - name: Prepare publication request
         id: request

@@ -18,10 +18,8 @@ runs:
         resolution-strategy: lowest
         python-version: "3.13"
         enable-cache: true
-        cache-dependency-glob: |
-          tests/uv.lock
-          user-docs/uv.lock
+        cache-dependency-glob: uv.lock
 
-    - name: Install test dependencies
+    - name: Install Python test dependencies
       shell: bash
       run: task tests-setup

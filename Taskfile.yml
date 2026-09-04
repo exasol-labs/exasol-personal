@@ -28,8 +28,9 @@ tasks:
 
   docs-build:
     desc: Build the user documentation and fail on warnings
+    dir: user-docs
     cmds:
-      - uv run --project user-docs --locked --no-build mkdocs build --strict --config-file user-docs/mkdocs.yml
+      - uv run --locked --no-build mkdocs build --strict --config-file mkdocs.yml
 
   docs-test:
     desc: Test the user documentation tooling
@@ -143,8 +144,7 @@ tasks:
   deps-update-python:
     desc: Update all Python dependencies
     cmds:
-      - uv lock --project tests --upgrade
-      - uv lock --project user-docs --upgrade
+      - uv lock --upgrade
 
   deps-update:
     desc: Update all Go dependencies
@@ -153,7 +153,7 @@ tasks:
       - deps-update-python
 
   tests-setup:
-    desc: Install required test tools
+    desc: Install Python test dependencies
     dir: '{{.TESTS_DIR}}'
     cmds:
       - uv sync --locked --no-build

@@ -59,12 +59,11 @@ task build
 
 ## User Documentation
 
-The published user documentation and its tooling configuration live under `user-docs/`. Its Python
-dependencies are isolated from the integration test environment and locked by uv.
+The published user documentation and integration tests are uv workspace members with one shared
+locked dependency set and virtual environment at the repository root.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run the strict build. uv
-synchronizes the locked dependencies into the isolated `user-docs/.venv` environment
-automatically:
+synchronizes the locked workspace dependencies into the root `.venv` automatically:
 
 ```bash
 task docs-build

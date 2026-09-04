@@ -2,7 +2,7 @@
 /vendor/
 /bin/
 /user-docs/site/
-/user-docs/.venv/
+/.venv/
 
 # IDE/editor files
 .vscode/

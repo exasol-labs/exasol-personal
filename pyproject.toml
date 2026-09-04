@@ -1,0 +1,24 @@
+[project]
+name = "exasol-personal-python-workspace"
+version = "0.0.0"
+requires-python = ">=3.13"
+
+[tool.uv]
+package = false
+required-version = ">=0.11.21"
+
+[tool.uv.workspace]
+members = ["tests", "user-docs"]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # Conflicts with the formatter.
+    "D203", # Conflicts with D211.
+    "D213", # Conflicts with D212.
+    "S101", # Pytest assertions are intentional.
+    "S603", # Commands are executed without a shell.
+]
