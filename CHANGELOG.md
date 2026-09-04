@@ -65,6 +65,10 @@ Notable user-facing changes to Exasol Personal are documented here.
 
 ### Fixed
 
+- Local port-conflict recovery now uses the actual runtime bind diagnostic instead of a later socket
+  probe, and macOS retains normal failure recovery when a partially started VM cannot be stopped
+  safely.
+
 - Fixed documentation publication failing during validation because the GitHub Actions runner does
   not provide the Task command.
 

@@ -380,7 +380,6 @@ func TestPodmanInstallStart_StopsAfterCommandFailure(t *testing.T) {
 
 			// Given
 			install, startConfig, fixture := newPodmanInstallFixture(t)
-			install.portAvailable = func(string, int) bool { return true }
 			if test.failedCommand != "" {
 				writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), test.failedCommand)
 			}
@@ -403,38 +402,23 @@ func TestPodmanInstallStart_StopsAfterCommandFailure(t *testing.T) {
 	}
 }
 
-func TestPodmanInstallStartClassifiesConfirmedBindFailures(t *testing.T) {
+func TestPodmanInstallStartClassifiesBindDiagnostic(t *testing.T) {
 	t.Parallel()
 	skipPodmanInstallTestOnWindows(t)
 
-	for _, test := range []struct {
-		name           string
-		bindDiagnostic bool
-		portAvailable  bool
-	}{
-		{name: "diagnostic", bindDiagnostic: true, portAvailable: true},
-		{name: "post failure availability", portAvailable: false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			install, startConfig, fixture := newPodmanInstallFixture(t)
-			writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
-			if test.bindDiagnostic {
-				writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
-			}
-			install.portAvailable = func(string, int) bool { return test.portAvailable }
+	install, startConfig, fixture := newPodmanInstallFixture(t)
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
+	writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
 
-			err := install.Start(context.Background(), nil, nil, startConfig)
+	err := install.Start(context.Background(), nil, nil, startConfig)
 
-			var unavailable *localports.UnavailableError
-			if !errors.As(err, &unavailable) || unavailable.Service != "db" ||
-				unavailable.Port != startConfig.ContainerDBPort {
-				t.Fatalf("expected unavailable database port, got %v", err)
-			}
-			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
-				t.Fatalf("expected original command error in chain, got %v", err)
-			}
-		})
+	var unavailable *localports.UnavailableError
+	if !errors.As(err, &unavailable) || unavailable.Service != "db" ||
+		unavailable.Port != startConfig.ContainerDBPort {
+		t.Fatalf("expected unavailable database port, got %v", err)
+	}
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Fatalf("expected original command error in chain, got %v", err)
 	}
 }
 
@@ -446,11 +430,6 @@ func TestPodmanInstallStartDoesNotClassifyVMInternalBindFailure(t *testing.T) {
 	startConfig.ContainerDBBindHost = ""
 	writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
 	writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
-	install.portAvailable = func(string, int) bool {
-		t.Fatal("VM-internal bind failure must not check host port availability")
-
-		return false
-	}
 
 	err := install.Start(context.Background(), nil, nil, startConfig)
 
@@ -470,7 +449,6 @@ func TestPodmanInstallStartDoesNotClassifyPartialStartAsBindFailure(t *testing.T
 	writeTestFile(t, filepath.Join(fixture.scenarioDir, "fail"), "run")
 	writeTestFile(t, filepath.Join(fixture.scenarioDir, "bind-diagnostic"), "enabled")
 	writeTestFile(t, filepath.Join(fixture.scenarioDir, "partial-start"), "enabled")
-	install.portAvailable = func(string, int) bool { return false }
 
 	err := install.Start(context.Background(), nil, nil, startConfig)
 

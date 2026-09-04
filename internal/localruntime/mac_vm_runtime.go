@@ -91,7 +91,6 @@ type MacVMRuntime struct {
 	endpoint         *RuntimeEndpoint
 	installFactory   func(string) (localinstall.LocalInstall, error)
 	migrationFactory func(localinstall.ExecutionEnvironment) macDataMigrator
-	portAvailable    func(string, int) bool
 }
 
 type macDataMigrator interface {
@@ -105,10 +104,9 @@ func NewMacVMRuntime(
 	manager *runtimeartifacts.Manager,
 ) *MacVMRuntime {
 	return &MacVMRuntime{
-		deployment:    deployment,
-		paths:         newVMRuntimePaths(deployment),
-		manager:       manager,
-		portAvailable: localports.IsAvailable,
+		deployment: deployment,
+		paths:      newVMRuntimePaths(deployment),
+		manager:    manager,
 	}
 }
 
@@ -217,19 +215,19 @@ func (runtime *MacVMRuntime) Start(
 		if runnerReportedEndpoint(runtime) {
 			return err
 		}
-		available := runtime.portAvailable
-		if available == nil {
-			available = localports.IsAvailable
-		}
 		failure := localports.ClassifyBindFailure(
 			forwardDatabaseService,
 			hostDBPort,
 			err,
 			err.Error(),
-			func() bool { return available(hostLoopbackHost, hostDBPort) },
 		)
 		if _, unavailable := localports.AsUnavailable(failure); unavailable {
-			return runtime.stopAfterStartFailure(ctx, runnerPath, out, outErr, failure)
+			if stopErr := runtime.stopVM(ctx, runnerPath, out, outErr); stopErr != nil {
+				return errors.Join(
+					err,
+					fmt.Errorf("failed to stop VM after startup failure: %w", stopErr),
+				)
+			}
 		}
 
 		return failure
