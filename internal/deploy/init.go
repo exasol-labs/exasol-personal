@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -181,11 +180,6 @@ func initializeDeploymentLocked(
 	if err != nil {
 		return err
 	}
-	infraDefaults, err := backend.ConfigurationDefaults(ctx, options.InfraVars)
-	if err != nil {
-		return err
-	}
-	effectiveInfraVars := mergeConfigurationDefaults(infraDefaults, options.InfraVars)
 	if err := backend.SetupWorkspace(ctx); err != nil {
 		return err
 	}
@@ -193,7 +187,7 @@ func initializeDeploymentLocked(
 		ctx,
 		deployment,
 		exasolState,
-		newDeploymentConfigurationFromRaw(effectiveInfraVars, options.InstallVars),
+		newDeploymentConfigurationFromRaw(options.InfraVars, options.InstallVars),
 	); err != nil {
 		return err
 	}
@@ -217,17 +211,6 @@ func initializeDeploymentLocked(
 	)
 
 	return nil
-}
-
-func mergeConfigurationDefaults(
-	defaults map[string]string,
-	overrides map[string]string,
-) map[string]string {
-	merged := make(map[string]string, len(defaults)+len(overrides))
-	maps.Copy(merged, defaults)
-	maps.Copy(merged, overrides)
-
-	return merged
 }
 
 // extractPresets writes infrastructure, installation,

@@ -115,41 +115,6 @@ func (*localBackend) SetupWorkspace(_ context.Context) error {
 	return nil
 }
 
-func (b *localBackend) ConfigurationDefaults(
-	ctx context.Context,
-	supplied map[string]string,
-) (map[string]string, error) {
-	if b.manifest == nil {
-		return nil, errors.New("local infrastructure manifest is missing")
-	}
-
-	capabilities := localCapabilitiesForPlatform(b.goos, b.goarch)
-	runtimeConfig := defaultLocalRuntimeConfig(detectLocalHostMemoryMB(ctx))
-
-	defaults := make(map[string]string)
-	if !hasLocalConfigOverride(supplied, localPortsConfigName) {
-		ports, err := b.ports.resolve(ctx, "", localServiceCatalog)
-		if err != nil {
-			return nil, err
-		}
-		defaults[localPortsConfigName] = ports
-	}
-	if !capabilities.vmSizing {
-		return defaults, nil
-	}
-	if !hasLocalConfigOverride(supplied, localCPUCountConfigName) {
-		defaults[localCPUCountConfigName] = strconv.Itoa(runtimeConfig.cpuCount)
-	}
-	if !hasLocalConfigOverride(supplied, localMemoryMBConfigName) {
-		defaults[localMemoryMBConfigName] = strconv.Itoa(runtimeConfig.memoryMB)
-	}
-	if !hasLocalConfigOverride(supplied, localDataSizeGBConfigName) {
-		defaults[localDataSizeGBConfigName] = strconv.Itoa(runtimeConfig.dataSizeGB)
-	}
-
-	return defaults, nil
-}
-
 // MigrateConfigurationBeforeStart normalizes legacy automatic mappings at the
 // last safe point before a stopped runtime starts. Configure performs the
 // allocation and persists the result only after allocation succeeds.
@@ -184,17 +149,6 @@ func legacyAutomaticLocalPorts(raw string) bool {
 	}
 	for _, service := range localServiceCatalog {
 		if port, configured := mappings[service.name]; configured && port == 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasLocalConfigOverride(supplied map[string]string, name string) bool {
-	canonical := canonicalLocalConfigName(name)
-	for suppliedName := range supplied {
-		if canonicalLocalConfigName(suppliedName) == canonical {
 			return true
 		}
 	}

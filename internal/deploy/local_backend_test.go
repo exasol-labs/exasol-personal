@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -534,43 +533,6 @@ func TestLocalBackendReadConfiguration_LinuxExposesOnlyPorts(t *testing.T) {
 	}
 }
 
-func TestLocalBackendConfigurationDefaults_ReturnsOnlyUnsetValues(t *testing.T) {
-	t.Parallel()
-
-	manifest := &presets.InfrastructureManifest{
-		Backend: backendTypeLocal,
-		Local: &presets.InfrastructureLocal{
-			CPUCount: 4, MemoryMB: 8192, DataSizeGB: 250,
-		},
-	}
-	backend := newLocalBackendForPlatform(
-		config.NewDeploymentDir(t.TempDir()), manifest, nil, localMacOS, localMacArch,
-	)
-	backend.ports = testLocalPortAllocator(
-		t,
-		localMinimumAutomaticPort,
-		localMaximumPort,
-		func(_ string, port int) bool { return port == localDatabasePort },
-	)
-
-	defaults, err := backend.ConfigurationDefaults(
-		context.Background(),
-		map[string]string{localCPUCountConfigName: "8"},
-	)
-	if err != nil {
-		t.Fatalf("expected local defaults, got %v", err)
-	}
-	if _, exists := defaults[localCPUCountConfigName]; exists {
-		t.Fatalf("expected supplied CPU count to be omitted, got %#v", defaults)
-	}
-	expectedDefaults := defaultLocalRuntimeConfig(detectLocalHostMemoryMB(context.Background()))
-	if defaults[localMemoryMBConfigName] != strconv.Itoa(expectedDefaults.memoryMB) ||
-		defaults[localDataSizeGBConfigName] != strconv.Itoa(localDefaultDataSizeGB) ||
-		defaults[localPortsConfigName] != "db:8563" {
-		t.Fatalf("unexpected local defaults: %#v", defaults)
-	}
-}
-
 func TestLocalBackendConfigure_WritesSizingValuesToManifest(t *testing.T) {
 	t.Parallel()
 
@@ -614,6 +576,55 @@ func TestLocalBackendConfigure_WritesSizingValuesToManifest(t *testing.T) {
 	if written.Local.CPUCount != 4 ||
 		written.Local.MemoryMB != 8192 ||
 		written.Local.DataSizeGB != 250 {
+		t.Fatalf("unexpected local manifest configuration: %#v", written.Local)
+	}
+}
+
+func TestLocalBackendConfigure_PreservesPresetValuesAndAppliesOverrides(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	deployment := config.NewDeploymentDir(t.TempDir())
+	if err := os.MkdirAll(deployment.InfrastructureDir(), 0o750); err != nil {
+		t.Fatalf("failed to create infrastructure dir: %v", err)
+	}
+	manifest := &presets.InfrastructureManifest{
+		Name:        "Local",
+		Description: "Custom local preset",
+		Backend:     backendTypeLocal,
+		Local: &presets.InfrastructureLocal{
+			CPUCount:   4,
+			MemoryMB:   8192,
+			DataSizeGB: 250,
+			Ports:      testLocalDBPortConfig,
+		},
+	}
+	backend := newLocalBackendForPlatform(
+		deployment, manifest, nil, localMacOS, localMacArch,
+	)
+
+	// When
+	err := backend.Configure(
+		context.Background(),
+		map[string]string{localCPUCountConfigName: "8"},
+		DeploymentMetadata{},
+		DeploymentLayout{},
+	)
+	// Then
+	if err != nil {
+		t.Fatalf("expected local configuration to be written, got %v", err)
+	}
+	written, err := presets.ReadInfrastructureManifestFromDir(deployment.InfrastructureDir())
+	if err != nil {
+		t.Fatalf("expected local infrastructure manifest to be readable, got %v", err)
+	}
+	if written.Local == nil {
+		t.Fatal("expected local manifest configuration, got nil")
+	}
+	if written.Local.CPUCount != 8 ||
+		written.Local.MemoryMB != 8192 ||
+		written.Local.DataSizeGB != 250 ||
+		written.Local.Ports != testLocalDBPortConfig {
 		t.Fatalf("unexpected local manifest configuration: %#v", written.Local)
 	}
 }

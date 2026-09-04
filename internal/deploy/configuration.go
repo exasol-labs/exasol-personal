@@ -208,22 +208,10 @@ func resetDeploymentConfigurationLocked(
 	if err != nil {
 		return "", err
 	}
-	backendDefaults, err := configurationDefaultsForReset(
-		ctx, deployment, configuration, optionNames, resetAll,
-	)
-	if err != nil {
-		return "", err
-	}
 	configuration, err = applyConfigurationReset(configuration, optionNames, resetAll)
 	if err != nil {
 		return "", err
 	}
-	applyInfrastructureResetDefaults(
-		configuration.Infrastructure.Options,
-		backendDefaults,
-		optionNames,
-		resetAll,
-	)
 
 	if err := writeDeploymentConfiguration(
 		ctx,
@@ -256,63 +244,6 @@ func configurationApplyCommand(exasolState *config.ExasolPersonalState) (string,
 	}
 
 	return "deploy", nil
-}
-
-func configurationDefaultsForReset(
-	ctx context.Context,
-	deployment config.DeploymentDir,
-	configuration DeploymentConfiguration,
-	optionNames []string,
-	resetAll bool,
-) (map[string]string, error) {
-	manifest, err := config.ReadInfrastructureManifest(deployment)
-	if err != nil {
-		return nil, err
-	}
-	backend, err := newDeploymentBackend(ctx, deployment, manifest)
-	if err != nil {
-		return nil, err
-	}
-
-	supplied := make(map[string]string)
-	for _, value := range configuration.Infrastructure.Options {
-		if configurationOptionSelected(value.Name, optionNames, resetAll) {
-			continue
-		}
-		supplied[value.Name] = value.RawValue
-	}
-
-	return backend.ConfigurationDefaults(ctx, supplied)
-}
-
-func applyInfrastructureResetDefaults(
-	values []DeploymentConfigValue,
-	defaults map[string]string,
-	optionNames []string,
-	resetAll bool,
-) {
-	for idx := range values {
-		if !configurationOptionSelected(values[idx].Name, optionNames, resetAll) {
-			continue
-		}
-		if rawDefault, exists := defaults[values[idx].Name]; exists {
-			values[idx].RawValue = rawDefault
-		}
-	}
-}
-
-func configurationOptionSelected(name string, optionNames []string, resetAll bool) bool {
-	if resetAll {
-		return true
-	}
-	normalized := normalizeConfigOptionName(name)
-	for _, selected := range optionNames {
-		if normalizeConfigOptionName(selected) == normalized {
-			return true
-		}
-	}
-
-	return false
 }
 
 // applyConfigurationReset resets either the explicitly selected options or,
