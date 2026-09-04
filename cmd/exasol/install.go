@@ -170,7 +170,7 @@ func runInstallPersistentPostRun(cmd *cobra.Command, _ []string) error {
 			),
 		},
 	); err != nil {
-		return fmt.Errorf("deployment failed: %w", err)
+		return installDeploymentFailure(err)
 	}
 
 	err := addConnectionInstructionsTerminalOutput(deployment)
@@ -179,6 +179,13 @@ func runInstallPersistentPostRun(cmd *cobra.Command, _ []string) error {
 	}
 
 	return nil
+}
+
+func installDeploymentFailure(cause error) error {
+	err := fmt.Errorf("deployment failed: %w", cause)
+	addLocalPortRecoveryCallToAction(err)
+
+	return err
 }
 
 func prepareInitializedInstall(
