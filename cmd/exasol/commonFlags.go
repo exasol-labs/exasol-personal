@@ -33,7 +33,6 @@ type CommonFlags struct {
 	// Common flags for deploy-like commands (deploy + install).
 	DeployVerbose            bool
 	DeployTofuUpdateLockfile bool
-	LocalRuntimeAutoApprove  bool
 }
 
 // commonFlags is the default runtime instance used by the actual CLI commands.
@@ -89,18 +88,6 @@ func registerDeployFlags(cmd *cobra.Command, state *CommonFlags) {
 		"tofu-update-lockfile",
 		false,
 		"Allow OpenTofu to update .terraform.lock.hcl during init",
-	)
-	registerRuntimePreparationFlag(cmd, state)
-}
-
-// registerRuntimePreparationFlag is shared by the deploy-like commands and
-// start, all of which may need to prepare the local runtime's host.
-func registerRuntimePreparationFlag(cmd *cobra.Command, state *CommonFlags) {
-	cmd.Flags().BoolVar(
-		&state.LocalRuntimeAutoApprove,
-		"auto-approve",
-		false,
-		"Approve required local runtime host preparation without prompting",
 	)
 }
 

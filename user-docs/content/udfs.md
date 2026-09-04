@@ -34,7 +34,8 @@ state.
 Installing, updating, or removing an SLC normally restarts the local database. This drops open
 connections and aborts running statements. The command asks for confirmation first:
 
-- Use `--auto-approve` to skip the prompt. This is required for non-interactive use.
+- Use `--auto-approve` to skip the prompt. A command with no terminal attached also skips it and
+  restarts without asking.
 - Use `--no-restart` to record the change and activate it the next time the deployment starts.
 
 Official `install`, `update`, and `remove` operations and custom SLC management apply only to local

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/exasol/exasol-personal/internal/approval"
 	"github.com/exasol/exasol-personal/internal/localruntime"
 	"github.com/spf13/cobra"
 )
@@ -33,7 +34,7 @@ func TestHostChangeApprover_AutoApproveSkipsPrompt(t *testing.T) {
 	t.Parallel()
 
 	cmd, errOut := newApproverTestCommand("")
-	approver := hostChangeApprover(cmd, true, false)
+	approver := hostChangeApprover(cmd, approval.ModeApprove)
 
 	approved, err := approver(context.Background(), testHostChangeRequest)
 	if err != nil {
@@ -54,7 +55,7 @@ func TestHostChangeApprover_NonInteractiveRefusesWithoutAutoApprove(t *testing.T
 	t.Parallel()
 
 	cmd, _ := newApproverTestCommand("")
-	approver := hostChangeApprover(cmd, false, false)
+	approver := hostChangeApprover(cmd, approval.ModeNonInteractive)
 
 	approved, err := approver(context.Background(), testHostChangeRequest)
 	if err == nil {
@@ -72,7 +73,7 @@ func TestHostChangeApprover_InteractiveShowsCommandsAndAcceptsYes(t *testing.T) 
 	t.Parallel()
 
 	cmd, errOut := newApproverTestCommand("y\n")
-	approver := hostChangeApprover(cmd, false, true)
+	approver := hostChangeApprover(cmd, approval.ModePrompt)
 
 	approved, err := approver(context.Background(), testHostChangeRequest)
 	if err != nil {
@@ -95,7 +96,7 @@ func TestHostChangeApprover_InteractiveDefaultsToNo(t *testing.T) {
 
 	for _, input := range []string{"\n", "n\n", "no\n", ""} {
 		cmd, _ := newApproverTestCommand(input)
-		approver := hostChangeApprover(cmd, false, true)
+		approver := hostChangeApprover(cmd, approval.ModePrompt)
 
 		approved, err := approver(context.Background(), testHostChangeRequest)
 		if err != nil {
@@ -111,7 +112,7 @@ func TestHostRuntimePreparationOptions_AlwaysSuppliesApproverAndProgress(t *test
 	t.Parallel()
 
 	cmd, errOut := newApproverTestCommand("")
-	options := hostRuntimePreparationOptions(cmd, true)
+	options := hostRuntimePreparationOptions(cmd, approval.ModeApprove)
 
 	if options.ApproveHostChange == nil {
 		t.Error("expected an approver to always be supplied")

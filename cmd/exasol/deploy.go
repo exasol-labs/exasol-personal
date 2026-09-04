@@ -33,7 +33,7 @@ var deployCmd = &cobra.Command{
 			deploy.DeployOptions{
 				UpdateDependencyLockfile: commonFlags.DeployTofuUpdateLockfile,
 				RuntimePreparation: hostRuntimePreparationOptions(
-					cmd, commonFlags.LocalRuntimeAutoApprove,
+					cmd, rootOpts.ApprovalMode(),
 				),
 			},
 		); err != nil {

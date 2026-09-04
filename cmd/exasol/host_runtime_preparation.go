@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/exasol/exasol-personal/internal/approval"
 	"github.com/exasol/exasol-personal/internal/localruntime"
-	"github.com/exasol/exasol-personal/internal/util"
 	"github.com/spf13/cobra"
 )
 
@@ -21,10 +21,10 @@ import (
 // detection) in the command layer.
 func hostRuntimePreparationOptions(
 	cmd *cobra.Command,
-	autoApprove bool,
+	mode approval.Mode,
 ) localruntime.PrepareOptions {
 	return localruntime.PrepareOptions{
-		ApproveHostChange: hostChangeApprover(cmd, autoApprove, util.IsInteractiveStdin()),
+		ApproveHostChange: hostChangeApprover(cmd, mode),
 		// Preparation progress goes to stderr unconditionally: it reports
 		// multi-minute steps the user needs to see, and is not the
 		// --verbose-gated subprocess output.
@@ -35,21 +35,22 @@ func hostRuntimePreparationOptions(
 // hostChangeApprover refuses rather than assumes when it cannot ask. A
 // non-interactive run without --auto-approve fails with instructions instead
 // of silently mutating the host.
-//
-//nolint:revive // autoApprove and interactive describe command presentation policy.
 func hostChangeApprover(
 	cmd *cobra.Command,
-	autoApprove, interactive bool,
+	mode approval.Mode,
 ) localruntime.HostChangeApprover {
 	return func(_ context.Context, request localruntime.HostChangeRequest) (bool, error) {
-		if autoApprove {
+		switch mode {
+		case approval.ModeApprove:
 			return true, nil
-		}
-		if !interactive {
+		case approval.ModeNonInteractive:
 			return false, errors.New(
 				"local runtime host preparation requires approval; " +
 					"re-run with --auto-approve or run the displayed setup manually",
 			)
+		case approval.ModePrompt:
+		default:
+			return false, fmt.Errorf("unrecognised approval mode %q", mode)
 		}
 
 		writer := cmd.ErrOrStderr()

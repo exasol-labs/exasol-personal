@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/exasol/exasol-personal/assets/resources"
+	"github.com/exasol/exasol-personal/internal/approval"
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/deploy"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
+	"github.com/exasol/exasol-personal/internal/util"
 	"github.com/lmittmann/tint"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -68,6 +70,37 @@ var logLevelMap = map[string]slog.Level{
 }
 
 var ErrInvalidLogLevel = errors.New("invalid log level")
+
+// RootFlags contains flag values that apply to every command.
+//
+// State is kept separate from registration, like CommonFlags, so tests can
+// register against a throwaway command tree instead of the shared globals.
+type RootFlags struct {
+	AutoApprove bool
+}
+
+var rootOpts = &RootFlags{}
+
+// ApprovalMode resolves the flag together with terminal availability, so each
+// command can respond to "nobody can be asked" on its own terms rather than
+// having it collapsed into a plain refusal here.
+func (flags *RootFlags) ApprovalMode() approval.Mode {
+	return approval.Resolve(flags.AutoApprove, util.IsInteractiveStdin())
+}
+
+// registerAutoApproveFlag makes approval a single cross-cutting choice rather
+// than a per-command one. Commands read rootOpts.ApprovalMode() instead of
+// declaring their own flag, which would shadow this one where it matters.
+func registerAutoApproveFlag(root *cobra.Command, state *RootFlags) {
+	root.PersistentFlags().BoolVar(
+		&state.AutoApprove,
+		"auto-approve",
+		false,
+		"Approve confirmation prompts, which a run with no terminal also does "+
+			"automatically except for local runtime host preparation. Input "+
+			"validation and other safety checks still apply",
+	)
+}
 
 var rootCmd = &cobra.Command{
 	Use:           "exasol",
@@ -164,6 +197,7 @@ func addHelpFlag(cmd *cobra.Command) {
 func Execute() error {
 	resetTerminalMessages()
 	registerLogLevelFlag(rootCmd, commonFlags)
+	registerAutoApproveFlag(rootCmd, rootOpts)
 
 	// One resource manager for the whole process, attached to the root
 	// context so every command reaches it via cmd.Context() instead of each

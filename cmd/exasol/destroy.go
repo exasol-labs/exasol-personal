@@ -20,16 +20,11 @@ Pass --remove to remove the local deployment directory after deployment resource
 `
 
 var destroyOpts = struct {
-	AutoApprove bool
-	Remove      bool
+	Remove bool
 }{}
 
 func registerDestroyFlags(cmd *cobra.Command) {
 	registerVerboseFlag(cmd, commonFlags)
-	cmd.Flags().BoolVar(&destroyOpts.AutoApprove,
-		"auto-approve",
-		false,
-		"Force destroy without confirmation prompt")
 	// nolint: revive
 	cmd.Flags().BoolVar(&destroyOpts.Remove,
 		"remove",
@@ -48,15 +43,21 @@ var destroyCmd = &cobra.Command{
 
 		deployment := commonFlags.Deployment()
 
-		response := destroyOpts.AutoApprove
-		if !response {
-			removalTarget := ""
-			if destroyOpts.Remove {
-				removalTarget = deployment.Root()
-			}
-			response = askForUserConfirmation(destroyConfirmationPrompt(removalTarget))
+		proceed, err := confirmAction(
+			rootOpts.ApprovalMode(),
+			func() bool {
+				removalTarget := ""
+				if destroyOpts.Remove {
+					removalTarget = deployment.Root()
+				}
+
+				return askForUserConfirmation(destroyConfirmationPrompt(removalTarget))
+			},
+		)
+		if err != nil {
+			return err
 		}
-		if !response {
+		if !proceed {
 			return nil
 		}
 

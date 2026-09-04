@@ -30,9 +30,10 @@ default machine when necessary, without changing the configuration of an existin
 installing Podman changes shared host state, the launcher displays the exact command and asks for
 approval.
 
-Use `--auto-approve` with `install`, `deploy`, or `start` for unattended preparation. A command that
-cannot prompt refuses the host change unless this option is present. Stopping or destroying an
-Exasol deployment leaves the shared Podman machine running.
+Use `--auto-approve` for unattended preparation. A command that cannot prompt refuses this host
+change unless the option is present, unlike other confirmations, which an unattended run approves
+automatically. Stopping or destroying an Exasol deployment leaves the shared Podman machine
+running.
 
 ## Open a shell
 

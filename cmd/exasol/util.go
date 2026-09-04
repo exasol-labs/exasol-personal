@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/exasol/exasol-personal/internal/approval"
 	"github.com/exasol/exasol-personal/internal/deploy"
 	"github.com/exasol/exasol-personal/internal/presets"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
@@ -25,6 +26,22 @@ type UserConfirmationValidator func(input string) bool
 func confirmYes(input string) bool {
 	input = strings.ToLower(strings.TrimSpace(input))
 	return input == "y" || input == "yes"
+}
+
+// confirmAction applies the approval mode to an action that needs confirmation.
+// A run with no terminal proceeds as though approval had been granted, so it
+// never blocks on a prompt nobody can answer. Host preparation is the
+// exception and refuses instead, because it mutates state shared beyond the
+// deployment.
+func confirmAction(mode approval.Mode, ask func() bool) (bool, error) {
+	switch mode {
+	case approval.ModeApprove, approval.ModeNonInteractive:
+		return true, nil
+	case approval.ModePrompt:
+		return ask(), nil
+	default:
+		return false, fmt.Errorf("unrecognised approval mode %q", mode)
+	}
 }
 
 // askForUserConfirmation asks the user for confirmation via stderr, and uses validators

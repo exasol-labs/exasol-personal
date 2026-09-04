@@ -142,12 +142,18 @@ func GetTerminalWidth() (int, bool) {
 
 // IsInteractiveStdin returns true when stdin is attached to a terminal.
 func IsInteractiveStdin() bool {
-	stat, err := os.Stdin.Stat()
-	if err != nil {
+	return isTerminal(os.Stdin)
+}
+
+// isTerminal asks whether the file is a terminal rather than whether it is a
+// character device: /dev/null is a character device, so the weaker test
+// reports a redirected, unattended run as interactive.
+func isTerminal(file *os.File) bool {
+	if file == nil {
 		return false
 	}
 
-	return (stat.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(file.Fd()))
 }
 
 var (
