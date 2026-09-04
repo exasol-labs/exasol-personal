@@ -12,31 +12,24 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/exasol/exasol-personal/internal/approval"
 	"github.com/exasol/exasol-personal/internal/deploy"
-	"github.com/exasol/exasol-personal/internal/util"
 	"github.com/spf13/cobra"
 )
 
 var slcInstallOpts = struct {
-	AutoApprove bool
-	NoRestart   bool
+	NoRestart bool
 }{}
 
 var slcUpdateOpts = struct {
-	AutoApprove bool
-	NoRestart   bool
+	NoRestart bool
 }{}
 
 var slcRemoveOpts = struct {
-	AutoApprove bool
-	NoRestart   bool
+	NoRestart bool
 }{}
 
 const slcOperationAbortedMessage = "Aborted; no changes were made."
-
-const slcAutoApproveFlagName = "auto-approve"
-
-const slcAutoApproveFlagDesc = "Do not prompt for confirmation before restarting the database"
 
 const slcNoRestartFlagName = "no-restart"
 
@@ -44,19 +37,17 @@ const slcNoRestartFlagName = "no-restart"
 const slcInstalledVerb = "Installed"
 
 var slcCustomInstallOpts = struct {
-	AutoApprove bool
-	NoRestart   bool
-	Source      string
-	Alias       string
-	Language    string
+	NoRestart bool
+	Source    string
+	Alias     string
+	Language  string
 }{}
 
 var slcCustomUpdateOpts = struct {
-	AutoApprove bool
-	NoRestart   bool
-	Source      string
-	Alias       string
-	Language    string
+	NoRestart bool
+	Source    string
+	Alias     string
+	Language  string
 }{}
 
 const slcCustomSourceFlagName = "source"
@@ -105,7 +96,7 @@ var slcInstallCmd = &cobra.Command{
 			alias,
 			commonFlags.DeployVerbose,
 			!slcInstallOpts.NoRestart,
-			slcConfirmFunc(cmd, slcInstallOpts.AutoApprove, fmt.Sprintf("Installing %q", alias)),
+			slcConfirmFunc(cmd, rootOpts.ApprovalMode(), fmt.Sprintf("Installing %q", alias)),
 		)
 		if errors.Is(err, deploy.ErrSLCOperationCancelled) {
 			addTerminalNotice(slcOperationAbortedMessage)
@@ -161,7 +152,7 @@ var slcUpdateCmd = &cobra.Command{
 			alias,
 			commonFlags.DeployVerbose,
 			!slcUpdateOpts.NoRestart,
-			slcConfirmFunc(cmd, slcUpdateOpts.AutoApprove, fmt.Sprintf("Updating %q", alias)),
+			slcConfirmFunc(cmd, rootOpts.ApprovalMode(), fmt.Sprintf("Updating %q", alias)),
 		)
 		if errors.Is(err, deploy.ErrSLCOperationCancelled) {
 			addTerminalNotice(slcOperationAbortedMessage)
@@ -227,7 +218,7 @@ var slcRemoveCmd = &cobra.Command{
 			alias,
 			commonFlags.DeployVerbose,
 			!slcRemoveOpts.NoRestart,
-			slcConfirmFunc(cmd, slcRemoveOpts.AutoApprove, fmt.Sprintf("Removing %q", alias)),
+			slcConfirmFunc(cmd, rootOpts.ApprovalMode(), fmt.Sprintf("Removing %q", alias)),
 		)
 		if errors.Is(err, deploy.ErrSLCOperationCancelled) {
 			addTerminalNotice(slcOperationAbortedMessage)
@@ -313,7 +304,7 @@ func runSLCCustomInstall(cmd *cobra.Command) error {
 		},
 		commonFlags.DeployVerbose,
 		!slcCustomInstallOpts.NoRestart,
-		customSLCConfirmFunc(cmd, slcCustomInstallOpts.AutoApprove),
+		customSLCConfirmFunc(cmd, rootOpts.ApprovalMode()),
 	)
 	if errors.Is(err, deploy.ErrSLCOperationCancelled) {
 		addTerminalNotice(slcOperationAbortedMessage)
@@ -359,7 +350,7 @@ func runSLCCustomUpdate(cmd *cobra.Command) error {
 		},
 		commonFlags.DeployVerbose,
 		!slcCustomUpdateOpts.NoRestart,
-		customSLCConfirmFunc(cmd, slcCustomUpdateOpts.AutoApprove),
+		customSLCConfirmFunc(cmd, rootOpts.ApprovalMode()),
 	)
 	if errors.Is(err, deploy.ErrSLCOperationCancelled) {
 		addTerminalNotice(slcOperationAbortedMessage)
@@ -400,7 +391,6 @@ func runSLCCustomUpdate(cmd *cobra.Command) error {
 func runSLCInstallRust(cmd *cobra.Command) error {
 	return runSLCRust(
 		cmd,
-		slcInstallOpts.AutoApprove,
 		!slcInstallOpts.NoRestart,
 		"The Rust SLC is already installed with this container. Nothing to do.",
 		"Replaced",
@@ -413,7 +403,6 @@ func runSLCInstallRust(cmd *cobra.Command) error {
 func runSLCUpdateRust(cmd *cobra.Command) error {
 	return runSLCRust(
 		cmd,
-		slcUpdateOpts.AutoApprove,
 		!slcUpdateOpts.NoRestart,
 		"The Rust SLC is already up to date. Nothing to do.",
 		"Updated",
@@ -429,7 +418,6 @@ var installRustSLCFn = deploy.InstallRustSLC
 // wording for an unchanged container and for a replaced one.
 func runSLCRust(
 	cmd *cobra.Command,
-	autoApprove bool,
 	restart bool,
 	unchangedMessage string,
 	replacedVerb string,
@@ -440,7 +428,7 @@ func runSLCRust(
 		deploy.RustSLCInstallOpts{},
 		commonFlags.DeployVerbose,
 		restart,
-		customSLCConfirmFunc(cmd, autoApprove),
+		customSLCConfirmFunc(cmd, rootOpts.ApprovalMode()),
 	)
 
 	return reportRustSLCResult(result, err, unchangedMessage, replacedVerb)
@@ -526,19 +514,21 @@ func runSLCCustomRemove(cmd *cobra.Command, alias string) error {
 	return nil
 }
 
-// Refuses non-interactively so scripts never override an SLC silently.
-//
-//nolint:revive // autoApprove reflects the user's flag, not internal control coupling.
-func customSLCConfirmFunc(cmd *cobra.Command, autoApprove bool) deploy.CustomSLCConfirm {
-	if autoApprove {
+// A run with no terminal proceeds without asking rather than blocking on a
+// prompt nobody can answer. A nil callback means "already confirmed", so an
+// unrecognised mode must not return one.
+func customSLCConfirmFunc(cmd *cobra.Command, mode approval.Mode) deploy.CustomSLCConfirm {
+	switch mode {
+	case approval.ModeApprove, approval.ModeNonInteractive:
 		return nil
+	case approval.ModePrompt:
+	default:
+		return func(string) (bool, error) {
+			return false, fmt.Errorf("unrecognised approval mode %q", mode)
+		}
 	}
 
 	return func(prompt string) (bool, error) {
-		if !util.IsInteractiveStdin() {
-			return false, errors.New(prompt + "; re-run with --auto-approve to proceed")
-		}
-
 		// stderr, so an interactive prompt never lands in the middle of --json output.
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s.\nContinue? [y/N]: ", prompt)
 
@@ -552,24 +542,21 @@ func customSLCConfirmFunc(cmd *cobra.Command, autoApprove bool) deploy.CustomSLC
 }
 
 // slcConfirmFunc returns a confirmation callback for a database-restarting SLC operation.
-// It returns nil when the user passed --auto-approve (pre-approved). Otherwise it warns and
-// prompts interactively, and refuses non-interactively so scripts never trigger a silent
-// restart.
-//
-//nolint:revive // autoApprove reflects the user's flag, not internal control coupling.
-func slcConfirmFunc(cmd *cobra.Command, autoApprove bool, action string) deploy.ConfirmFunc {
-	if autoApprove {
+// It returns nil when the restart needs no confirmation, either because approval was
+// granted or because there is no terminal to ask. Otherwise it warns and prompts. A nil
+// callback means "already confirmed", so an unrecognised mode must not return one.
+func slcConfirmFunc(cmd *cobra.Command, mode approval.Mode, action string) deploy.ConfirmFunc {
+	switch mode {
+	case approval.ModeApprove, approval.ModeNonInteractive:
 		return nil
+	case approval.ModePrompt:
+	default:
+		return func() (bool, error) {
+			return false, fmt.Errorf("unrecognised approval mode %q", mode)
+		}
 	}
 
 	return func() (bool, error) {
-		if !util.IsInteractiveStdin() {
-			return false, errors.New(
-				"this restarts the database; re-run with --auto-approve to confirm, " +
-					"or --no-restart to apply on the next start",
-			)
-		}
-
 		_, _ = fmt.Fprintf(
 			cmd.ErrOrStderr(),
 			"%s will restart the database. Open connections will be dropped and running "+
@@ -834,8 +821,6 @@ func init() {
 	registerDeploymentDirFlag(slcInstallCmd, commonFlags)
 	registerOutputFlags(slcInstallCmd, commonFlags)
 	registerVerboseFlag(slcInstallCmd, commonFlags)
-	slcInstallCmd.Flags().BoolVar(&slcInstallOpts.AutoApprove, slcAutoApproveFlagName, false,
-		slcAutoApproveFlagDesc)
 	slcInstallCmd.Flags().BoolVar(&slcInstallOpts.NoRestart, slcNoRestartFlagName, false,
 		"Record the SLC without restarting; it activates on the next start")
 
@@ -844,8 +829,6 @@ func init() {
 	registerDeploymentDirFlag(slcUpdateCmd, commonFlags)
 	registerOutputFlags(slcUpdateCmd, commonFlags)
 	registerVerboseFlag(slcUpdateCmd, commonFlags)
-	slcUpdateCmd.Flags().BoolVar(&slcUpdateOpts.AutoApprove, slcAutoApproveFlagName, false,
-		slcAutoApproveFlagDesc)
 	slcUpdateCmd.Flags().BoolVar(&slcUpdateOpts.NoRestart, slcNoRestartFlagName, false,
 		"Record the update without restarting; it applies on the next start")
 
@@ -854,8 +837,6 @@ func init() {
 	registerDeploymentDirFlag(slcRemoveCmd, commonFlags)
 	registerOutputFlags(slcRemoveCmd, commonFlags)
 	registerVerboseFlag(slcRemoveCmd, commonFlags)
-	slcRemoveCmd.Flags().BoolVar(&slcRemoveOpts.AutoApprove, slcAutoApproveFlagName, false,
-		slcAutoApproveFlagDesc)
 	slcRemoveCmd.Flags().BoolVar(&slcRemoveOpts.NoRestart, slcNoRestartFlagName, false,
 		"Record the removal without restarting; it applies on the next start")
 
@@ -867,10 +848,6 @@ func init() {
 	registerDeploymentDirFlag(slcCustomInstallCmd, commonFlags)
 	registerOutputFlags(slcCustomInstallCmd, commonFlags)
 	registerVerboseFlag(slcCustomInstallCmd, commonFlags)
-	slcCustomInstallCmd.Flags().BoolVar(&slcCustomInstallOpts.AutoApprove,
-		slcAutoApproveFlagName, false,
-		"Do not prompt before restarting the database, overriding a built-in alias, "+
-			"or replacing a custom SLC")
 	slcCustomInstallCmd.Flags().BoolVar(&slcCustomInstallOpts.NoRestart,
 		slcNoRestartFlagName, false,
 		"Record the custom SLC without restarting; it activates on the next start")
@@ -887,8 +864,6 @@ func init() {
 	registerDeploymentDirFlag(slcCustomUpdateCmd, commonFlags)
 	registerOutputFlags(slcCustomUpdateCmd, commonFlags)
 	registerVerboseFlag(slcCustomUpdateCmd, commonFlags)
-	slcCustomUpdateCmd.Flags().BoolVar(&slcCustomUpdateOpts.AutoApprove,
-		slcAutoApproveFlagName, false, slcAutoApproveFlagDesc)
 	slcCustomUpdateCmd.Flags().BoolVar(&slcCustomUpdateOpts.NoRestart,
 		slcNoRestartFlagName, false,
 		"Record the update without restarting; it applies on the next start")

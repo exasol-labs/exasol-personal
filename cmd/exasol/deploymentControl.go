@@ -62,7 +62,7 @@ var startCmd = &cobra.Command{
 			deploy.StartOptions{
 				WaitTimeoutSeconds: waitTimeoutSeconds,
 				RuntimePreparation: hostRuntimePreparationOptions(
-					cmd, commonFlags.LocalRuntimeAutoApprove,
+					cmd, rootOpts.ApprovalMode(),
 				),
 			},
 		); err != nil {
@@ -125,7 +125,6 @@ func registerStartFlags() {
 		deploy.StartedDefaultTimeoutInMinutes,
 		"Maximum minutes to wait for the database to become ready",
 	)
-	registerRuntimePreparationFlag(startCmd, commonFlags)
 }
 
 // nolint: gochecknoinits

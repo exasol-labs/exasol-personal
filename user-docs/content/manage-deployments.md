@@ -97,6 +97,10 @@ Destroying removes the deployment resources and their data:
 exasol destroy
 ```
 
+The launcher asks for confirmation first. Pass `--auto-approve` to skip the prompt; a command with
+no terminal attached proceeds without asking, so a script that reaches `exasol destroy` or
+`exasol remove` destroys the deployment.
+
 By default, the launcher retains the deployment directory for inspection or recreation. Remove it
 after successful destruction with:
 

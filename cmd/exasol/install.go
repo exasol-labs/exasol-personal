@@ -166,7 +166,7 @@ func runInstallPersistentPostRun(cmd *cobra.Command, _ []string) error {
 		deploy.DeployOptions{
 			UpdateDependencyLockfile: commonFlags.DeployTofuUpdateLockfile,
 			RuntimePreparation: hostRuntimePreparationOptions(
-				cmd, commonFlags.LocalRuntimeAutoApprove,
+				cmd, rootOpts.ApprovalMode(),
 			),
 		},
 	); err != nil {

@@ -19,19 +19,6 @@ WARNING: This command removes the local deployment directory. It does not destro
 deployment resources and can make launcher-based cleanup impossible if resources still exist.
 `
 
-var removeOpts = struct {
-	AutoApprove bool
-}{}
-
-func registerRemoveFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(
-		&removeOpts.AutoApprove,
-		"auto-approve",
-		false,
-		"Force local removal without confirmation prompt",
-	)
-}
-
 var removeCmd = &cobra.Command{
 	Use:     "remove",
 	Short:   removeCmdShortDesc,
@@ -41,12 +28,18 @@ var removeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cmd.SilenceUsage = true
 
-		response := removeOpts.AutoApprove
-		if !response {
-			deployment := commonFlags.Deployment()
-			response = askForUserConfirmation(removeConfirmationPrompt(deployment.Root()))
+		proceed, err := confirmAction(
+			rootOpts.ApprovalMode(),
+			func() bool {
+				deployment := commonFlags.Deployment()
+
+				return askForUserConfirmation(removeConfirmationPrompt(deployment.Root()))
+			},
+		)
+		if err != nil {
+			return err
 		}
-		if !response {
+		if !proceed {
 			return nil
 		}
 
@@ -67,6 +60,5 @@ func removeConfirmationPrompt(deploymentDir string) string {
 // nolint: gochecknoinits
 func init() {
 	registerDeploymentDirFlag(removeCmd, commonFlags)
-	registerRemoveFlags(removeCmd)
 	rootCmd.AddCommand(removeCmd)
 }
