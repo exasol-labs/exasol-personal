@@ -59,10 +59,6 @@ type deploymentBackend interface {
 	) error
 	ValidateEnvironment() error
 	SetupWorkspace(ctx context.Context) error
-	ConfigurationDefaults(
-		ctx context.Context,
-		supplied map[string]string,
-	) (map[string]string, error)
 	Configure(
 		ctx context.Context,
 		overrides map[string]string,

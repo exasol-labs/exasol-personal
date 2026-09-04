@@ -246,6 +246,59 @@ func TestInitDeployment_PersistsConcreteLocalPort(t *testing.T) {
 	}
 }
 
+func TestInitDeployment_PreservesCustomLocalPresetValues(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	infrastructureDir := t.TempDir()
+	writeTestFile(t, filepath.Join(
+		infrastructureDir, presets.InfrastructureManifestFilename,
+	), `
+name: Custom Local
+description: Custom local infrastructure preset
+backend: local
+local:
+  cpuCount: 4
+  memoryMB: 8192
+  dataSizeGB: 250
+  ports: db:28563
+compatibility:
+  provides:
+    - local-exasol
+`)
+	deployment := config.NewDeploymentDir(t.TempDir())
+
+	// When
+	err := InitDeployment(
+		testManagerContext(t),
+		deployment,
+		InitOptions{
+			InfrastructurePreset: PresetRef{Path: infrastructureDir},
+			InstallationPreset:   PresetRef{Name: "local"},
+			InfraVars:            map[string]string{},
+			InstallVars:          map[string]string{},
+			CurrentVersion:       "0.0.0",
+		},
+	)
+	// Then
+	if err != nil {
+		t.Fatalf("InitDeployment failed: %v", err)
+	}
+	manifest, err := presets.ReadInfrastructureManifestFromDir(deployment.InfrastructureDir())
+	if err != nil {
+		t.Fatalf("failed to read local manifest: %v", err)
+	}
+	if manifest.Local == nil {
+		t.Fatal("expected local manifest configuration")
+	}
+	if manifest.Local.CPUCount != 4 ||
+		manifest.Local.MemoryMB != 8192 ||
+		manifest.Local.DataSizeGB != 250 ||
+		manifest.Local.Ports != "db:28563" {
+		t.Fatalf("expected custom preset values to be preserved, got %#v", manifest.Local)
+	}
+}
+
 func parseTFVarsFile(tfvars []byte, filename string) (map[string]string, error) {
 	parser := hclparse.NewParser()
 	file, diags := parser.ParseHCL(tfvars, filename)

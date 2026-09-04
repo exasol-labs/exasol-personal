@@ -93,13 +93,6 @@ func (b *tofuBackend) SetupWorkspace(_ context.Context) error {
 	return tofu.SetupWorkspace(b.cfg)
 }
 
-func (*tofuBackend) ConfigurationDefaults(
-	context.Context,
-	map[string]string,
-) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-
 func (b *tofuBackend) Configure(
 	_ context.Context,
 	overrides map[string]string,
