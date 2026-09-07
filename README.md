@@ -34,7 +34,7 @@ personal use and does not impose an artificial data-size limit.
 
 On macOS, Linux, and Windows (WSL), install the launcher with:
 ```bash
-curl https://downloads.exasol.com/exasol-personal/installer.sh | sh
+curl https://www.exasol.com/install/ | sh
 ```
 
 For a quick start and a general overview of the available commands, type:
