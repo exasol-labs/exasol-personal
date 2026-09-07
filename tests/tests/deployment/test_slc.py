@@ -132,9 +132,15 @@ def _assert_python_udf_is_unavailable(deployment: Deployment, schema: str) -> No
 def test_slc_list_reports_catalog_containers(slc_deployment: Deployment) -> None:
     """`slc list` reports the catalog in text and JSON, whatever is installed."""
     # When / Then: text listing shows the table and the Python alias.
-    text = _slc(slc_deployment, "list", capture=True).stdout
-    assert "FLAVOR" in text
-    assert PYTHON_ALIAS in text
+    result = _slc(slc_deployment, "list", capture=True)
+    assert result.stdout.splitlines()[0].split() == [
+        "ALIASES",
+        "FLAVOR",
+        "VERSION",
+        "INSTALLED",
+    ]
+    assert PYTHON_ALIAS in result.stdout
+    assert "Prefer an alias from the ALIASES column" in result.stderr
 
     # When / Then: JSON listing carries the documented fields for every entry.
     statuses = _official_statuses(slc_deployment)
@@ -161,7 +167,7 @@ def test_slc_install_rejects_unknown_alias(slc_deployment: Deployment) -> None:
 
     # Then: the error names the failure and valid aliases, and nothing changed.
     stderr = exc_info.value.stderr or ""
-    assert "unknown SLC alias" in stderr
+    assert "unknown SLC identifier" in stderr
     assert PYTHON_ALIAS in stderr
     assert _is_alias_installed(slc_deployment, PYTHON_ALIAS) == was_installed
 
@@ -182,8 +188,11 @@ def test_slc_remove_when_not_installed_is_noop(slc_deployment: Deployment) -> No
 @pytest.mark.local_e2e
 def test_official_slc_install_runs_udf(slc_deployment: Deployment) -> None:
     """Installing an official SLC makes its UDFs runnable; reinstalling is a no-op."""
-    # When / Then: installing marks it installed and a Python UDF runs.
-    _slc(slc_deployment, "install", PYTHON_ALIAS, "--auto-approve")
+    # Given: the flavor advertised by `slc list` for the Python SLC.
+    python_flavor = str(_status_for_alias(slc_deployment, PYTHON_ALIAS)["flavor"])
+
+    # When / Then: installing by flavor marks it installed and a Python UDF runs.
+    _slc(slc_deployment, "install", python_flavor, "--auto-approve")
     assert _is_alias_installed(slc_deployment, PYTHON_ALIAS)
     assert "hi" in _run_scalar_udf(slc_deployment, PYTHON_ALIAS, "slc_e2e_official")
 

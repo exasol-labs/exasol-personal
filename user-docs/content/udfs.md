@@ -16,9 +16,10 @@ exasol slc update python3
 exasol slc remove python3
 ```
 
-The language argument is an alias used by `CREATE ... SCRIPT` and is matched case-insensitively. For
-example, the Python container enables the `PYTHON3` and `PYTHON312` aliases, the Java container
-enables `JAVA` and `JAVA17`, and the R container enables `R` and `R44`.
+Official SLCs can be installed, updated, or removed using either an alias or the flavor shown by
+`exasol slc list`. Matching is case-insensitive. Prefer aliases because they remain stable when the
+catalog flavor changes. For example, the Python container enables the `PYTHON3` and `PYTHON312`
+aliases, the Java container enables `JAVA` and `JAVA17`, and the R container enables `R` and `R44`.
 
 The alias `rust` is reserved and is not part of the official catalog. Instead of resolving a catalog
 entry, it installs the latest release of
@@ -28,8 +29,8 @@ release and applies it if it has changed. To install a specific Rust container i
 `rust` currently resolves to, use `exasol slc custom install --alias RUST --language rust --source
 <path-or-url>`.
 
-`exasol slc list` displays each available container's flavor, aliases, version, and installation
-state.
+`exasol slc list` displays aliases first, followed by each container's flavor, version, and
+installation state.
 
 Installing, updating, or removing an SLC normally restarts the local database. This drops open
 connections and aborts running statements. The command asks for confirmation first:

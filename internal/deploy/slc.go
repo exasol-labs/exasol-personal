@@ -378,7 +378,7 @@ func UpdateSLC(
 		return nil, err
 	}
 
-	index := findInstalledSLC(state.InstalledSLCs, alias)
+	index := findInstalledSLC(state.InstalledSLCs, entry.Language)
 	if index < 0 {
 		return &SLCUpdateResult{Operation: SLCOperationUpdate, Found: false}, nil
 	}
