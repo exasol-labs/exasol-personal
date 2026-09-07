@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Exasol Documentation
+  - name: Exasol Personal User Documentation
+    url: https://exasol.github.io/exasol-personal/
+    about: Install, deploy, and use Exasol Personal
+  - name: Exasol Database Documentation
     url: https://docs.exasol.com/db/latest/home.htm
     about: Official Exasol database documentation
-  - name: AWS Setup Guide
-    url: https://github.com/exasol/exasol-personal/blob/main/HOWTO_SETUP_AWS_ACCOUNT.md
-    about: How to set up your AWS account for Exasol Personal
