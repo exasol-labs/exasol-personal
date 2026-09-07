@@ -236,6 +236,10 @@ class Deployment:
     def status(self, *args: str) -> CompletedProcess[str]:
         return self.launcher.status(self.deployment_dir.name, *args)
 
+    def status_value(self) -> str:
+        """Return the launcher-reported deployment status."""
+        return self.launcher.status_value(self.deployment_dir.name)
+
     def has_status(self, expected_status: str) -> bool:
         return self.launcher.has_status(
             self.deployment_dir.name,
