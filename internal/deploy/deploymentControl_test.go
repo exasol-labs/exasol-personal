@@ -14,6 +14,7 @@ import (
 
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/localports"
+	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 )
 
 type unavailablePortBackend struct {
@@ -441,5 +442,105 @@ func TestWorkflowStatePermitsStop_GuidesForInitializedDeployment(t *testing.T) {
 		if !strings.Contains(decision.guidance, expected) {
 			t.Fatalf("expected guidance to contain %q, got %q", expected, decision.guidance)
 		}
+	}
+}
+
+// writeFakeStoppedRunner builds a Manager whose runner reports a runtime that
+// is not running, both directly and through the Podman container probe the
+// host runtimes use.
+func writeFakeStoppedRunner(t *testing.T) *runtimeartifacts.Manager {
+	t.Helper()
+
+	script := "#!/bin/sh\n" +
+		"if [ \"$1\" = status ]; then echo '{\"running\":false}'; exit 0; fi\n" +
+		"if [ \"$1\" = run ]; then\n" +
+		"  shift; [ \"$1\" = -- ]; shift\n" +
+		"  if [ \"$1 $2 $3\" = 'podman container exists' ]; then exit 1; fi\n" +
+		"fi\n" +
+		"exit 1\n"
+
+	return newTestManagerForRunner(t, []byte(script))
+}
+
+func TestRecordLifecycleFailureRestoresPriorStateWhenRuntimeStopped(t *testing.T) {
+	t.Parallel()
+	skipOnWindows(t)
+
+	deployment := newLocalTestDeployment(t)
+	ensureLocalRuntimeWorkDir(t, deployment)
+	state, err := config.ReadExasolPersonalState(deployment)
+	if err != nil {
+		t.Fatalf("read state failed: %v", err)
+	}
+	if err := state.SetWorkflowStateAndWrite(
+		&config.WorkflowStateOperationInProgress{Operation: config.StartOperation},
+		deployment,
+	); err != nil {
+		t.Fatalf("write workflow state failed: %v", err)
+	}
+	ctx := runtimeartifacts.NewContext(context.Background(), writeFakeStoppedRunner(t))
+	cause := errors.New("runtime reported an unrecognized diagnostic")
+
+	failure := recordLifecycleFailure(
+		ctx,
+		state,
+		deployment,
+		config.StartOperation,
+		&config.WorkflowStateStopped{},
+		cause,
+	)
+
+	if !errors.Is(failure, cause) {
+		t.Fatalf("expected the original cause to be preserved, got %v", failure)
+	}
+	if _, retryable := errors.AsType[*LocalRetryableFailureError](failure); !retryable {
+		t.Fatalf("expected a retryable local failure so the recovery guidance is offered, "+
+			"got %T", failure)
+	}
+	persisted, readErr := config.ReadExasolPersonalState(deployment)
+	if readErr != nil {
+		t.Fatalf("read restored state failed: %v", readErr)
+	}
+	workflowState := mustWorkflowState(t, persisted)
+	if _, stopped := workflowState.(*config.WorkflowStateStopped); !stopped {
+		t.Fatalf("expected stopped state, got %T", workflowState)
+	}
+}
+
+// A cloud deployment keeps the interrupted state: only local deployments have a
+// runtime the launcher can bring to a known state and retry against.
+func TestRecordLifecycleFailureMarksCloudDeploymentInterrupted(t *testing.T) {
+	t.Parallel()
+
+	deployment, state := deploymentInState(
+		t,
+		&config.WorkflowStateOperationInProgress{Operation: config.StartOperation},
+	)
+	cause := errors.New("backend failed for an unrelated reason")
+
+	failure := recordLifecycleFailure(
+		context.Background(),
+		state,
+		deployment,
+		config.StartOperation,
+		&config.WorkflowStateStopped{},
+		cause,
+	)
+
+	if !errors.Is(failure, cause) {
+		t.Fatalf("expected the original cause to be preserved, got %v", failure)
+	}
+	persisted, readErr := config.ReadExasolPersonalState(deployment)
+	if readErr != nil {
+		t.Fatalf("read persisted state failed: %v", readErr)
+	}
+	workflowState := mustWorkflowState(t, persisted)
+	interrupted, isInterrupted := workflowState.(*config.WorkflowStateInterrupted)
+	if !isInterrupted {
+		t.Fatalf("expected interrupted state, got %T", workflowState)
+	}
+	if interrupted.InterruptedDuringOperation != config.StartOperation {
+		t.Fatalf("expected the start operation to be recorded, got %q",
+			interrupted.InterruptedDuringOperation)
 	}
 }
