@@ -17,7 +17,7 @@ task build
 
 Provider selection uses `--provider=<name>[,<name>...]`. If omitted, all known providers (`aws`, `exoscale`, `stackit`, `azure`) are included. Location flags such as `--aws-region`, `--exoscale-zone`, `--stackit-region`, and `--azure-location` are multi-value too, so one provider can appear multiple times in the `Scope:` table - once per searched region or zone. Stackit cleanup also needs `--stackit-project-id` when the Stackit provider is selected; Azure needs `--azure-subscription-id`. Azure discovery is subscription-wide, so `--azure-location` is an optional filter rather than a separate search target (omit it to search every region). In command help, provider-specific flags are shown in separate provider option groups so they stay visually distinct from generic options such as `--owner`, `--json`, or `--verbose`.
 
-Azure authenticates through the standard `DefaultAzureCredential` chain (environment variables, workload/managed identity, or the Azure CLI), and identifies Exasol Personal deployments by the same `Project`/`Deployment`/`Owner` tags the launcher applies. See [HOWTO_SETUP_AZURE_ACCOUNT.md](../../HOWTO_SETUP_AZURE_ACCOUNT.md) for account setup.
+Azure authenticates through the standard `DefaultAzureCredential` chain (environment variables, workload/managed identity, or the Azure CLI), and identifies Exasol Personal deployments by the same `Project`/`Deployment`/`Owner` tags the launcher applies. See [Set up Microsoft Azure](../../user-docs/content/cloud/azure.md) for account setup.
 
 Discover deployments:
 

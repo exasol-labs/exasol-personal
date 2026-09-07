@@ -40,10 +40,10 @@
 
 **Cloud deployment:** an account on one of the supported providers, with permission to provision compute instances:
 
-- **AWS** — [Set up an AWS account for Exasol Personal](./HOWTO_SETUP_AWS_ACCOUNT.md)
-- **Azure** — [Set up an Azure account for Exasol Personal](./HOWTO_SETUP_AZURE_ACCOUNT.md)
-- **Exoscale** — [Set up an Exoscale account for Exasol Personal](./HOWTO_SETUP_EXOSCALE_ACCOUNT.md)
-- **STACKIT** — [Set up a STACKIT account for Exasol Personal](./HOWTO_SETUP_STACKIT_ACCOUNT.md)
+- **AWS** — [Set up Amazon Web Services](./user-docs/content/cloud/aws.md)
+- **Azure** — [Set up Microsoft Azure](./user-docs/content/cloud/azure.md)
+- **Exoscale** — [Set up Exoscale](./user-docs/content/cloud/exoscale.md)
+- **STACKIT** — [Set up STACKIT](./user-docs/content/cloud/stackit.md)
 
 
 ## ⬇️ Install the Launcher
