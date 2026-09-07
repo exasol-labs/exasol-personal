@@ -32,6 +32,8 @@ Display the status of the current deployment.
 	- ` + deploy.StatusInitialized + `
 	- ` + deploy.StatusOperationInProgress + `
 	- ` + deploy.StatusInterrupted + `
+	- ` + deploy.StatusStopped + `
+	- ` + deploy.StatusRunning + `
 	- ` + deploy.StatusDeploymentFailed + `
 	- ` + deploy.StatusDatabaseConnectionFailed + `
 	- ` + deploy.StatusDatabaseReady + `
