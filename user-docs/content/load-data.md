@@ -30,16 +30,6 @@ CREATE OR REPLACE TABLE PRODUCT_REVIEWS AS (
 
 Exasol infers the table schemas from the Parquet files.
 
-## Import a local Parquet file
-
-The bundled SQL client can upload one Parquet file per statement from the client computer:
-
-```sql
-CREATE TABLE LOCAL_PRODUCTS AS (
-    IMPORT FROM LOCAL PARQUET FILE '/path/to/products.parquet'
-);
-```
-
 Run the statement through `exasol connect -c` or place it in a file passed to `exasol connect -f`.
 The `LOCAL` form reads the file from the computer running the client. It does not change the
 database engine's object-storage Parquet behavior.
