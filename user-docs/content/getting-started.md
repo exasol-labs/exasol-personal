@@ -14,7 +14,7 @@ Choose where the database will run:
   the account setup guide for [AWS](cloud/aws.md), [Azure](cloud/azure.md),
   [Exoscale](cloud/exoscale.md), or [STACKIT](cloud/stackit.md).
 
-## Install on macOS or Linux
+## Install on macOS, Linux or Windows (WSL)
 
 Run:
 
@@ -24,11 +24,6 @@ curl https://www.exasol.com/install/ | sh
 
 The installer places the `exasol` binary in `~/.local/bin`. If that directory is not in `PATH`,
 follow the instructions printed by the installer.
-
-## Install on Windows
-
-Download the launcher from the [Exasol Download Portal](https://downloads.exasol.com/exasol-personal)
-and copy the binary into a directory in `PATH`.
 
 ## Verify the installation
 
