@@ -45,7 +45,7 @@ Fixes #
 
 - [ ] Code follows the project's [coding guidelines](doc/best_practices.md)
 - [ ] Ran `task fmt` and `task lint`
-- [ ] Updated documentation (if applicable)
+- [ ] Updated documentation (if applicable) - `user-docs/` for user-facing changes, `doc/` for contributor-facing changes
 - [ ] Updated `CHANGELOG.md` for user-facing changes, including examples for new features when useful
 - [ ] Added/updated tests
 - [ ] All tests pass locally
