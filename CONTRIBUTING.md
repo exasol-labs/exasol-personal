@@ -27,7 +27,7 @@ Thank you for your interest in contributing! We welcome contributions from the c
   - `refactor:` code refactoring
   - `chore:` maintenance tasks
 - **Add tests** for new features or bug fixes
-- **Update documentation** if you're changing functionality
+- **Update documentation** if you're changing functionality - user-facing changes belong in `user-docs/`, contributor-facing changes in `doc/`
 - **Run `task fmt` and `task lint`** before committing
 - **Ensure all tests pass** - run `task all` to check
 - **Reference related issues** using `#issue-number`
