@@ -10,7 +10,36 @@ shell sessions.
 These pages describe the product version selected in the version menu. Choose the version that
 matches your installed launcher when commands or supported capabilities differ between releases.
 
-## Start here
+## Quick start
+
+To install and run Exasol Personal locally on macOS, Linux, or Windows, follow these steps.
+
+Install the launcher:
+
+```bash
+curl https://www.exasol.com/install/ | sh
+```
+
+The installer places the `exasol` binary in `~/.local/bin`. If that directory is not in `PATH`,
+follow the instructions printed by the installer.
+
+Install and start the database:
+
+```bash
+exasol install local
+```
+
+Connect to your database:
+
+```bash
+exasol connect
+```
+
+Type any SQL statement terminated by `;`. For example, test your connection with `SELECT 1;`.
+See the [Exasol SQL reference](https://docs.exasol.com/db/latest/sql_reference.htm) for the
+full syntax.
+
+## Detailed user guides
 
 - [Install the launcher](getting-started.md), then [run Exasol locally](local-deployment.md) or
   [deploy it to the cloud](cloud-deployment.md).
