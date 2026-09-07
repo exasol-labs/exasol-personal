@@ -32,6 +32,12 @@ tasks:
     cmds:
       - uv run --locked --no-build mkdocs build --strict --config-file mkdocs.yml
 
+  docs-serve:
+    desc: Serve the user documentation locally and rebuild on change
+    dir: user-docs
+    cmds:
+      - uv run --locked --no-build mkdocs serve --config-file mkdocs.yml
+
   docs-test:
     desc: Test the user documentation tooling
     dir: user-docs
