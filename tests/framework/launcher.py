@@ -218,11 +218,11 @@ class Launcher:
             capture_output=True,
         )
 
-    def has_status(
+    def status_value(
         self,
         deployment_dir: str,
-        expected_status: str,
-    ) -> bool:
+    ) -> str:
+        """Return the `status` field reported by `exasol status --json`."""
         status_result = self.status(
             deployment_dir=deployment_dir,
         )
@@ -233,13 +233,22 @@ class Launcher:
 
         status_data = json.loads(status_result.stdout)
 
-        if status_data["status"] == expected_status:
+        return str(status_data["status"])
+
+    def has_status(
+        self,
+        deployment_dir: str,
+        expected_status: str,
+    ) -> bool:
+        actual_status = self.status_value(deployment_dir)
+
+        if actual_status == expected_status:
             return True
 
         logging.info(
             "expected status %s, got status %s",
             expected_status,
-            status_data["status"],
+            actual_status,
         )
 
         return False
