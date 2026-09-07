@@ -37,7 +37,7 @@ Thank you for your interest in contributing! We welcome contributions from the c
 - **Update the changelog for user-facing changes** - add an entry to [CHANGELOG.md](CHANGELOG.md) under `Unreleased` when a change affects CLI behavior, deployment behavior, supported platforms/providers, user-visible errors, documentation that changes how users operate the tool, or compatibility/breaking behavior. Use the existing `Added`, `Changed`, `Fixed`, and `Breaking Changes` sections, and include a short command example for new or changed CLI behavior when useful.
 - **Use the [pull request template](.github/pull_request_template.md)** when submitting a pull request
 - **Add tests** for new features or bug fixes
-- **Update documentation** if you're changing functionality
+- **Update documentation** if you're changing functionality - user-facing changes belong in `user-docs/`, contributor-facing changes in `doc/`
 - **Run `task fmt` and `task lint`** before committing
 - **Ensure all tests pass** - run `task all` to check
 - **Reference related issues** using `#issue-number`
