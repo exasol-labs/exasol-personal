@@ -171,6 +171,95 @@ func markOperationInterrupted(
 	return operationErr
 }
 
+// LocalRetryableFailureError reports a local lifecycle failure after the
+// deployment has been returned to a state it can be retried from. It makes no
+// claim about the cause: the launcher reports whatever the runtime said and
+// offers the same recovery commands on every platform.
+type LocalRetryableFailureError struct {
+	Operation string
+	Cause     error
+}
+
+func (err *LocalRetryableFailureError) Error() string { return err.Cause.Error() }
+
+func (err *LocalRetryableFailureError) Unwrap() error { return err.Cause }
+
+// recordLifecycleFailure persists the workflow state that a failed lifecycle
+// operation should leave behind, and returns the failure to report.
+//
+// A local deployment always ends up in a state it can retry from, on every
+// platform and whether or not the cause could be identified: stopped is the
+// only post-deploy state that permits `exasol config set`, so anything else
+// blocks the very recovery the failure calls for. Interrupted is left to the
+// signal handlers, which is the only situation that name describes.
+func recordLifecycleFailure(
+	ctx context.Context,
+	exasolState *config.ExasolPersonalState,
+	deployment config.DeploymentDir,
+	operation string,
+	priorState any,
+	operationErr error,
+) error {
+	if _, unavailable := localports.AsUnavailable(operationErr); unavailable {
+		return restoreStateAfterUnavailableLocalPort(
+			exasolState,
+			deployment,
+			priorState,
+			operationErr,
+		)
+	}
+
+	if !isLocalDeployment(deployment) {
+		return markOperationInterrupted(exasolState, deployment, operation, operationErr)
+	}
+
+	return restoreLocalStateAfterFailure(
+		ctx,
+		exasolState,
+		deployment,
+		operation,
+		priorState,
+		operationErr,
+	)
+}
+
+// restoreLocalStateAfterFailure returns a failed local deployment to priorState.
+// A runtime still running after the failure is stopped first, so the recorded
+// state and the machine agree before the user retries. Only a runtime that
+// cannot be brought to a known state stays interrupted.
+func restoreLocalStateAfterFailure(
+	ctx context.Context,
+	exasolState *config.ExasolPersonalState,
+	deployment config.DeploymentDir,
+	operation string,
+	priorState any,
+	operationErr error,
+) error {
+	if probeLocalRuntimeLiveness(ctx, deployment) == localRuntimeRunning {
+		if err := stopLocalRuntimeAfterFailure(ctx, deployment); err != nil {
+			slog.Warn("could not stop the local runtime after a failed operation",
+				"operation", operation, "error", err)
+
+			return markOperationInterrupted(exasolState, deployment, operation, operationErr)
+		}
+	}
+
+	// Logged at error level so a runtime diagnostic the launcher could not
+	// identify stays visible in deployment.log rather than only on stderr.
+	slog.Error("local operation failed; returning the deployment to a retryable state",
+		"operation", operation, "error", operationErr.Error())
+
+	if err := exasolState.SetWorkflowStateAndWrite(priorState, deployment); err != nil {
+		return errors.Join(
+			operationErr,
+			fmt.Errorf("failed to restore workflow state after a failed %s: %w",
+				operation, err),
+		)
+	}
+
+	return &LocalRetryableFailureError{Operation: operation, Cause: operationErr}
+}
+
 // LocalPortRecoveryError reports an unavailable local service port after the
 // deployment's prior workflow state has been restored successfully.
 type LocalPortRecoveryError struct {
@@ -332,17 +421,15 @@ func runStartBackend(
 		waitTimeoutSeconds,
 	); err != nil {
 		unregister()
-		_, unavailable := localports.AsUnavailable(err)
-		if unavailable {
-			return restoreStateAfterUnavailableLocalPort(
-				exasolState,
-				deployment,
-				&config.WorkflowStateStopped{},
-				err,
-			)
-		}
 
-		return markOperationInterrupted(exasolState, deployment, config.StartOperation, err)
+		return recordLifecycleFailure(
+			ctx,
+			exasolState,
+			deployment,
+			config.StartOperation,
+			&config.WorkflowStateStopped{},
+			err,
+		)
 	}
 
 	// Stop handling interrupts before committing final running state
@@ -522,7 +609,14 @@ func runStopBackend(
 	); err != nil {
 		unregister()
 
-		return markOperationInterrupted(exasolState, deployment, config.StopOperation, err)
+		return recordLifecycleFailure(
+			ctx,
+			exasolState,
+			deployment,
+			config.StopOperation,
+			&config.WorkflowStateStopped{},
+			err,
+		)
 	}
 
 	// Stop handling interrupts before committing final stopped state

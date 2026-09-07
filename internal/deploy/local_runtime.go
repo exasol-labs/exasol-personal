@@ -63,6 +63,73 @@ func reconcileCustomSLCsAfterStart(ctx context.Context, deployment config.Deploy
 	}
 }
 
+// localRuntimeLiveness answers "is the local runtime running?", including the
+// case where the probe cannot answer at all. That case must stay distinct from
+// stopped: treating an unanswerable probe as stopped leaves a deployment in a
+// state that blocks its own recovery.
+type localRuntimeLiveness int
+
+const (
+	localRuntimeLivenessUnknown localRuntimeLiveness = iota
+	localRuntimeStopped
+	localRuntimeRunning
+)
+
+// probeLocalRuntimeLiveness asks the selected local runtime whether it is
+// running. It reports the same answer on every platform, so callers need no
+// per-runtime knowledge to tell a clean failure from an indeterminate one.
+func probeLocalRuntimeLiveness(
+	ctx context.Context,
+	deployment config.DeploymentDir,
+) localRuntimeLiveness {
+	if !isLocalDeployment(deployment) {
+		return localRuntimeLivenessUnknown
+	}
+
+	manager := runtimeartifacts.FromContext(ctx)
+
+	selectedRuntime, err := newLocalRuntime(deployment, manager)
+	if err != nil {
+		slog.Warn("could not select local runtime to probe its status", "error", err)
+		return localRuntimeLivenessUnknown
+	}
+	// Make the runtime observable first. A Podman machine stopped outside the
+	// launcher leaves Status unable to answer, and a swallowed status error
+	// used to leave the stale "running" state in place - which then blocked
+	// the very start that would have restarted the machine. Best-effort: if
+	// this fails, Status is still worth attempting.
+	if err := selectedRuntime.EnsureQueryable(ctx, os.Stderr, os.Stderr); err != nil {
+		slog.Warn("could not make local runtime queryable", "error", err)
+	}
+
+	runtimeStatus, err := selectedRuntime.Status(ctx)
+	if err != nil {
+		slog.Warn("could not determine local runtime status", "error", err)
+		return localRuntimeLivenessUnknown
+	}
+
+	if runtimeStatus.Running {
+		return localRuntimeRunning
+	}
+
+	return localRuntimeStopped
+}
+
+// stopLocalRuntimeAfterFailure stops a local runtime left running by a failed
+// lifecycle operation, so the state the launcher records and the machine the
+// user retries against agree.
+func stopLocalRuntimeAfterFailure(
+	ctx context.Context,
+	deployment config.DeploymentDir,
+) error {
+	selectedRuntime, err := newLocalRuntime(deployment, runtimeartifacts.FromContext(ctx))
+	if err != nil {
+		return err
+	}
+
+	return selectedRuntime.Stop(ctx, os.Stderr, os.Stderr)
+}
+
 // reconcileLocalVMState corrects stale workflow state after an unclean local
 // runtime shutdown. The historical name is retained for compatibility with callers.
 //
@@ -92,35 +159,13 @@ func reconcileLocalVMState(
 		return nil
 	}
 
-	manager := runtimeartifacts.FromContext(ctx)
-
-	selectedRuntime, err := newLocalRuntime(deployment, manager)
-	if err != nil {
-		slog.Warn("could not select local runtime during reconciliation", "error", err)
-		return nil
-	}
-	// Make the runtime observable first. A Podman machine stopped outside the
-	// launcher leaves Status unable to answer, and a swallowed status error
-	// used to leave the stale "running" state in place — which then blocked
-	// the very start that would have restarted the machine. Best-effort: if
-	// this fails, Status is still worth attempting.
-	if err := selectedRuntime.EnsureQueryable(ctx, os.Stderr, os.Stderr); err != nil {
-		slog.Warn("could not make local runtime queryable during reconciliation",
-			"error", err)
-	}
-
-	runtimeStatus, err := selectedRuntime.Status(ctx)
-	if err != nil {
-		slog.Warn("could not determine local runtime status during reconciliation", "error", err)
+	if probeLocalRuntimeLiveness(ctx, deployment) != localRuntimeStopped {
 		return nil
 	}
 
-	if !runtimeStatus.Running {
-		slog.Info("local runtime is not running; correcting workflow state to stopped")
-		return exasolState.SetWorkflowStateAndWrite(&config.WorkflowStateStopped{}, deployment)
-	}
+	slog.Info("local runtime is not running; correcting workflow state to stopped")
 
-	return nil
+	return exasolState.SetWorkflowStateAndWrite(&config.WorkflowStateStopped{}, deployment)
 }
 
 func isLocalDeployment(deployment config.DeploymentDir) bool {
