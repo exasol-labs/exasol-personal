@@ -22,13 +22,14 @@
 
 ## 📖 About Exasol Personal
 
-Exasol Personal gives individual users a complete Exasol database for development, exploration,
-analytics, and AI-assisted workflows. The Exasol Launcher is a scriptable command-line application
-that installs and manages the database locally or on supported cloud infrastructure.
-
 Exasol is an in-memory, massively parallel analytics database with full SQL support, a vast
-ecosystem, extensive AI capabilities, and flexible extensibility. Exasol Personal is free for
-personal use and does not impose an artificial data-size limit.
+ecosystem, extensive AI capabilities, and flexible extensibility.
+
+Exasol Personal gives individual users a complete Exasol database for development, exploration,
+analytics, and AI-assisted workflows. It runs either locally (on macOS, Linux, or Windows) or on
+one of the supported clouds (AWS, Azure, STACKIT, or Exoscale), managed by the Exasol Launcher, an
+open-source scriptable command-line application. Exasol Personal is free for personal use and
+does not impose an artificial data-size limit.
 
 ## 🚀 Get started
 
