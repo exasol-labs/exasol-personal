@@ -10,7 +10,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     flags:
-      - -tags=official_release
+      - -tags=official_release,containers_image_openpgp
       - -trimpath
       - -gcflags=all=-l
     ldflags:
