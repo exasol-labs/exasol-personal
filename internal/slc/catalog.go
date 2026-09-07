@@ -65,7 +65,7 @@ type Entry struct {
 // with errors.Is; operations that require a concrete SLC (install/update) let it surface.
 var ErrArchitectureUnsupported = errors.New("architecture is not supported")
 
-// UnknownAliasError reports an alias that matches no catalog entry.
+// UnknownAliasError reports an identifier that matches no catalog entry.
 type UnknownAliasError struct {
 	Alias        string
 	ValidAliases []string
@@ -73,11 +73,11 @@ type UnknownAliasError struct {
 
 func (e *UnknownAliasError) Error() string {
 	if len(e.ValidAliases) == 0 {
-		return fmt.Sprintf("unknown SLC alias %q", e.Alias)
+		return fmt.Sprintf("unknown SLC identifier %q", e.Alias)
 	}
 
 	return fmt.Sprintf(
-		"unknown SLC alias %q; available aliases: %s",
+		"unknown SLC identifier %q; available aliases: %s",
 		e.Alias,
 		strings.Join(e.ValidAliases, ", "),
 	)
@@ -100,12 +100,12 @@ func Load(data []byte) (*Catalog, error) {
 	return &catalog, nil
 }
 
-// Resolve maps a user-supplied alias (matched case-insensitively) to a concrete SLC in
-// the architecture's default version.
-func (c *Catalog) Resolve(alias, goarch string) (Entry, error) {
-	normalized := strings.TrimSpace(alias)
+// Resolve maps a user-supplied alias or flavor (matched case-insensitively) to a concrete
+// SLC in the architecture's default version.
+func (c *Catalog) Resolve(identifier, goarch string) (Entry, error) {
+	normalized := strings.TrimSpace(identifier)
 	if normalized == "" {
-		return Entry{}, errors.New("no SLC alias provided")
+		return Entry{}, errors.New("no SLC identifier provided")
 	}
 
 	entries, err := c.entries(goarch)
@@ -114,6 +114,9 @@ func (c *Catalog) Resolve(alias, goarch string) (Entry, error) {
 	}
 
 	for _, entry := range entries {
+		if strings.EqualFold(entry.Flavor, normalized) {
+			return entry, nil
+		}
 		for _, candidate := range entry.Aliases {
 			if strings.EqualFold(candidate, normalized) {
 				return entry, nil

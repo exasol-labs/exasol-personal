@@ -4,11 +4,15 @@
 package deploy
 
 import (
+	"context"
 	"errors"
 	"os"
+	"runtime"
 	"testing"
 
+	"github.com/exasol/exasol-personal/assets/resources"
 	"github.com/exasol/exasol-personal/internal/config"
+	"github.com/exasol/exasol-personal/internal/slc"
 )
 
 func TestInstalledFlavors(t *testing.T) {
@@ -147,6 +151,57 @@ func TestFindInstalledSLCMatchesAliasLanguageAndFlavor(t *testing.T) {
 		if got := findInstalledSLC(installed, needle); got != want {
 			t.Errorf("findInstalledSLC(%q) = %d, want %d", needle, got, want)
 		}
+	}
+}
+
+func TestUpdateSLCFindsInstalledEntryAfterFlavorChange(t *testing.T) {
+	t.Parallel()
+
+	// Given: a stopped local deployment with the previous flavor of the current Python SLC.
+	catalog, err := slc.Load(resources.SLCCatalogYAML)
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	current, err := catalog.Resolve("PYTHON3", runtime.GOARCH)
+	if err != nil {
+		t.Fatalf("resolve Python SLC: %v", err)
+	}
+	previous := toInstalledSLC(current)
+	previous.Flavor += "-previous"
+	previous.Image += "-previous"
+
+	deployment := config.NewDeploymentDir(t.TempDir())
+	if err := os.MkdirAll(deployment.InfrastructureDir(), 0o750); err != nil {
+		t.Fatalf("create infrastructure directory: %v", err)
+	}
+	if err := os.WriteFile(
+		deployment.InfrastructureManifestPath(), []byte("backend: local\n"), 0o600,
+	); err != nil {
+		t.Fatalf("write infrastructure manifest: %v", err)
+	}
+	state := &config.ExasolPersonalState{
+		DeploymentVersion: "0.0.0",
+		InstalledSLCs:     []config.InstalledSLC{previous},
+	}
+	if err := state.SetWorkflowStateAndWrite(
+		&config.WorkflowStateStopped{}, deployment,
+	); err != nil {
+		t.Fatalf("write deployment state: %v", err)
+	}
+
+	// When: updating by the new flavor advertised by the catalog.
+	result, err := UpdateSLC(
+		context.Background(), deployment, current.Flavor, false, false, nil,
+	)
+	// Then: the previous flavor is found and replaced by the current entry.
+	if err != nil {
+		t.Fatalf("UpdateSLC returned an error: %v", err)
+	}
+	if !result.Found || !result.Changed {
+		t.Fatalf("expected an installed SLC update, got %#v", result)
+	}
+	if result.FromFlavor != previous.Flavor || result.Entry.Flavor != current.Flavor {
+		t.Fatalf("unexpected flavor transition: %#v", result)
 	}
 }
 

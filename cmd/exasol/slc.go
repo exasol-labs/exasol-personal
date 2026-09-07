@@ -82,9 +82,10 @@ var slcCmd = &cobra.Command{
 }
 
 var slcInstallCmd = &cobra.Command{
-	Use:   "install <alias>",
+	Use:   "install <alias-or-flavor>",
 	Short: "Install an official script language container",
-	Long: "Install an official script language container by alias.\n\n" +
+	Long: "Install an official script language container by alias or flavor.\n" +
+		"Prefer aliases because they remain stable when the catalog flavor changes.\n\n" +
 		"The alias `rust` is special: it is not part of the official catalogue. It installs\n" +
 		"the latest release of exasol-labs/language-container-rs that matches this machine's\n" +
 		"CPU architecture. To install a specific Rust build instead, use\n" +
@@ -137,9 +138,10 @@ var slcInstallCmd = &cobra.Command{
 }
 
 var slcUpdateCmd = &cobra.Command{
-	Use:   "update <alias>",
+	Use:   "update <alias-or-flavor>",
 	Short: "Update an installed official script language container",
-	Long: "Update an installed official script language container by alias.\n\n" +
+	Long: "Update an installed official script language container by alias or flavor.\n" +
+		"Prefer aliases because they remain stable when the catalog flavor changes.\n\n" +
 		"The alias `rust` is special: it re-resolves the latest release of\n" +
 		"exasol-labs/language-container-rs for this machine's CPU architecture and applies it\n" +
 		"if it differs from the installed container. To pin a specific Rust build, use\n" +
@@ -604,6 +606,11 @@ var slcListCmd = &cobra.Command{
 		}
 
 		renderSLCListText(statuses, customs)
+		if len(statuses) > 0 {
+			addTerminalCallToAction(
+				"Prefer an alias from the ALIASES column when installing an SLC.",
+			)
+		}
 
 		return nil
 	},
@@ -704,7 +711,7 @@ func writeOfficialSLCRows(writer io.Writer, statuses []deploy.SLCStatus) {
 		return
 	}
 
-	_, _ = fmt.Fprintln(writer, "FLAVOR\tALIASES\tVERSION\tINSTALLED")
+	_, _ = fmt.Fprintln(writer, "ALIASES\tFLAVOR\tVERSION\tINSTALLED")
 	for _, status := range statuses {
 		installed := "no"
 		if status.Installed {
@@ -713,8 +720,8 @@ func writeOfficialSLCRows(writer io.Writer, statuses []deploy.SLCStatus) {
 		_, _ = fmt.Fprintf(
 			writer,
 			"%s\t%s\t%s\t%s\n",
-			status.Flavor,
 			strings.Join(status.Aliases, ", "),
+			status.Flavor,
 			status.Version,
 			installed,
 		)

@@ -131,6 +131,25 @@ func TestSLCInstallAndUpdateDocumentTheRustAlias(t *testing.T) {
 	}
 }
 
+func TestSLCInstallAndUpdateDocumentAliasesAndFlavors(t *testing.T) {
+	t.Parallel()
+
+	// When / Then
+	for name, cmd := range map[string]*cobra.Command{
+		"install": slcInstallCmd,
+		"update":  slcUpdateCmd,
+	} {
+		if !strings.Contains(cmd.Use, "<alias-or-flavor>") {
+			t.Errorf("slc %s usage does not accept aliases or flavors: %q", name, cmd.Use)
+		}
+		for _, want := range []string{"by alias or flavor", "Prefer aliases"} {
+			if !strings.Contains(cmd.Long, want) {
+				t.Errorf("slc %s help does not mention %q", name, want)
+			}
+		}
+	}
+}
+
 // The alias dispatch is the only thing wiring the Rust SLC into the shared commands; keep both
 // entry points at the signature the RunE handlers call them with.
 func TestSLCRustDispatchFunctionsAreWired(t *testing.T) {
@@ -637,6 +656,10 @@ func TestFormatSLCListTextSeparatesOfficialFromCustom(t *testing.T) {
 	// Then
 	if !strings.Contains(output, "FLAVOR") || !strings.Contains(output, "CUSTOM ALIAS") {
 		t.Fatalf("expected both tables, got %q", output)
+	}
+	header := strings.Fields(strings.SplitN(output, "\n", 2)[0])
+	if !slices.Equal(header, []string{"ALIASES", "FLAVOR", "VERSION", "INSTALLED"}) {
+		t.Fatalf("expected aliases before flavor, got %q", output)
 	}
 	if !strings.Contains(output, "\n\n") {
 		t.Fatalf("expected a blank line between the two tables, got %q", output)

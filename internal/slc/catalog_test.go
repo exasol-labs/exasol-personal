@@ -93,6 +93,20 @@ func TestResolveIsCaseInsensitiveAndMatchesVersionedAlias(t *testing.T) {
 	}
 }
 
+func TestResolveMatchesFlavorCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	catalog := mustLoad(t)
+
+	entry, err := catalog.Resolve("JAVA-17", "arm64")
+	if err != nil {
+		t.Fatalf("Resolve(JAVA-17) error: %v", err)
+	}
+	if entry.Flavor != "java-17" {
+		t.Errorf("Flavor = %q, want %q", entry.Flavor, "java-17")
+	}
+}
+
 func TestResolveUnknownAliasListsValidAliases(t *testing.T) {
 	t.Parallel()
 
@@ -106,6 +120,20 @@ func TestResolveUnknownAliasListsValidAliases(t *testing.T) {
 	}
 	if len(unknown.ValidAliases) == 0 {
 		t.Error("expected UnknownAliasError to list valid aliases")
+	}
+	if !strings.Contains(err.Error(), "unknown SLC identifier") {
+		t.Errorf("expected an identifier error, got %q", err)
+	}
+}
+
+func TestResolveRejectsEmptyIdentifier(t *testing.T) {
+	t.Parallel()
+
+	catalog := mustLoad(t)
+
+	_, err := catalog.Resolve("  ", "arm64")
+	if err == nil || err.Error() != "no SLC identifier provided" {
+		t.Errorf("expected an empty identifier error, got %v", err)
 	}
 }
 
