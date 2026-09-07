@@ -20,6 +20,8 @@ For non-trivial changes, propose using OpenSpec even if the user has not asked f
 
 Guidelines for AI agents working with documentation in this repository.
 
+This repository has two documentation trees. `user-docs/` holds the published user documentation; `doc/` holds contributor documentation that stays in the repository. Route a change to the tree whose audience it serves, and document user-visible behavior, errors, and workflows in `user-docs/`.
+
 **Summary:** Link don't duplicate, keep it high-level, separate concerns clearly, be concise, avoid specifics that change, respect ownership boundaries.
 
 ### Avoid Duplication
@@ -41,6 +43,8 @@ Guidelines for AI agents working with documentation in this repository.
 ## Document Responsibilities
 
 **[README.md](README.md)** - End-user instructions, getting started, runtime prerequisites
+
+**[user-docs/](user-docs/)** - Published user documentation: getting started, deployment, database usage, troubleshooting, system requirements
 
 **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution process, behavioral guidelines (link to details)
 
