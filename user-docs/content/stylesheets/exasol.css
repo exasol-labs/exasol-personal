@@ -1,0 +1,71 @@
+/* Exasol brand palette, taken from the design tokens published by www.exasol.com. */
+
+:root {
+  --exasol-navy-950: #050a1c;
+  --exasol-navy-900: #081226;
+  --exasol-navy-850: #0b1730;
+  --exasol-navy-800: #10203f;
+  --exasol-green-400: #82dd4b;
+  --exasol-green-500: #5fc33b;
+  --exasol-green-700: #3c7f1a;
+  --exasol-teal-500: #1fa08b;
+  --exasol-mist-0: #ffffff;
+  --exasol-mist-50: #f4f7fb;
+  --exasol-mist-100: #eaeff6;
+  --exasol-mist-200: #dce3ee;
+  --exasol-text-body: #414141;
+  --exasol-text-dim: #9aaac6;
+  --exasol-text-muted: #566481;
+}
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: var(--exasol-navy-900);
+  --md-primary-fg-color--light: var(--exasol-navy-800);
+  --md-primary-fg-color--dark: var(--exasol-navy-950);
+  --md-primary-bg-color: var(--exasol-mist-0);
+  --md-primary-bg-color--light: var(--exasol-mist-100);
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: var(--exasol-green-500);
+  --md-accent-fg-color--transparent: rgb(95 195 59 / 0.1);
+  --md-accent-bg-color: var(--exasol-navy-900);
+  --md-accent-bg-color--light: var(--exasol-navy-800);
+}
+
+/* The brand green does not reach 4.5:1 on a light ground, so body links use the
+   same hue darkened; the brand green stays on hover and on dark surfaces. */
+[data-md-color-scheme="default"] {
+  --md-typeset-color: var(--exasol-text-body);
+  --md-typeset-a-color: var(--exasol-green-700);
+  --md-code-bg-color: var(--exasol-mist-50);
+  --md-footer-bg-color: var(--exasol-navy-900);
+  --md-footer-bg-color--dark: var(--exasol-navy-950);
+}
+
+[data-md-color-scheme="default"] .md-typeset h1,
+[data-md-color-scheme="default"] .md-typeset h2,
+[data-md-color-scheme="default"] .md-typeset h3 {
+  color: var(--exasol-navy-900);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: var(--exasol-navy-900);
+  --md-default-bg-color--light: var(--exasol-navy-850);
+  --md-default-bg-color--lighter: var(--exasol-navy-800);
+  --md-typeset-color: var(--exasol-mist-100);
+  --md-typeset-a-color: var(--exasol-green-400);
+  --md-code-bg-color: var(--exasol-navy-850);
+  --md-footer-bg-color: var(--exasol-navy-950);
+  --md-footer-bg-color--dark: var(--exasol-navy-950);
+}
+
+/* www.exasol.com separates its navy header from the page with a dim hairline. */
+.md-header {
+  border-bottom: 1px solid rgb(154 170 198 / 0.16);
+}
+
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: var(--md-accent-fg-color);
+}
