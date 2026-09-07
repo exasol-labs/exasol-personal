@@ -65,9 +65,13 @@ Notable user-facing changes to Exasol Personal are documented here.
 
 ### Fixed
 
-- Local port-conflict recovery now uses the actual runtime bind diagnostic instead of a later socket
-  probe, and macOS retains normal failure recovery when a partially started VM cannot be stopped
-  safely.
+- Fixed a failed local `start` or `stop` leaving the deployment in a state that rejected the
+  commands needed to recover. `exasol status` reported `interrupted` and `exasol config set` was
+  refused, so a deployment that failed to start could not be reconfigured and started again. Such
+  a deployment now reports `stopped` on every supported platform, and the failure explains what to
+  do next whether or not the launcher can identify the cause.
+
+  Example: `exasol config set --ports auto` followed by `exasol start`
 
 - Fixed documentation publication failing during validation because the GitHub Actions runner does
   not provide the Task command.

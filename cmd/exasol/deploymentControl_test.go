@@ -100,6 +100,32 @@ func TestAddLocalPortRecoveryCallToActionQueuesStructuredRecovery(t *testing.T) 
 	}
 }
 
+// An unidentified local failure still has to leave the user with something to
+// do next, and with the same commands on every platform.
+//
+//nolint:paralleltest // mutates shared terminal message queues
+func TestAddLocalPortRecoveryCallToActionQueuesRetryGuidance(t *testing.T) {
+	resetTerminalMessages()
+	defer resetTerminalMessages()
+
+	addLocalPortRecoveryCallToAction(&deploy.LocalRetryableFailureError{
+		Operation: "start",
+		Cause:     errors.New("runtime reported an unrecognized diagnostic"),
+	})
+	var stderr bytes.Buffer
+	writeTerminalCallsToAction(&stderr, true, false)
+
+	for _, expected := range []string{
+		"exasol start",
+		"exasol config set --ports db:<available-port>",
+		"exasol config set --ports auto",
+	} {
+		if !strings.Contains(stderr.String(), expected) {
+			t.Fatalf("expected retry guidance %q, got %q", expected, stderr.String())
+		}
+	}
+}
+
 func TestLifecycleCommandsRegisterJSONFlag(t *testing.T) {
 	t.Parallel()
 
