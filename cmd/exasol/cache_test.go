@@ -7,13 +7,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 	"github.com/spf13/cobra"
 )
@@ -77,14 +75,10 @@ func TestCacheListCommandInitializesConfig(t *testing.T) {
 	if _, err := os.Stat(expectedConfig); err != nil {
 		t.Fatalf("expected cache config to be created, got %v", err)
 	}
-	userCacheDir, err := os.UserCacheDir()
+	expectedCacheRoot, err := runtimeartifacts.DefaultCacheRoot()
 	if err != nil {
-		t.Fatalf("failed to resolve user cache dir: %v", err)
+		t.Fatalf("failed to resolve expected cache root: %v", err)
 	}
-	expectedCacheRoot := filepath.Join(
-		config.LauncherDirPath(userCacheDir),
-		"runtime-artifacts",
-	)
 	if !strings.Contains(buf.String(), "Runtime artifact cache: "+expectedCacheRoot) {
 		t.Fatalf("expected cache root in output, got %q", buf.String())
 	}

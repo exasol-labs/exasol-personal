@@ -128,12 +128,26 @@ type partialDownloadCandidate struct {
 }
 
 func DefaultCacheRoot() (string, error) {
+	return launcherpaths.CacheRootPath()
+}
+
+// LegacyCacheRoot exists only to be deleted once DefaultCacheRoot is in use;
+// the cache is disposable, so its contents are never migrated.
+func LegacyCacheRoot() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user cache directory: %w", err)
 	}
 
 	return filepath.Join(launcherpaths.DirPath(cacheDir), runtimeArtifactsDirName), nil
+}
+
+func DeleteLegacyCache(legacyCacheRoot string) error {
+	if err := os.RemoveAll(legacyCacheRoot); err != nil {
+		return fmt.Errorf("remove legacy cache root %s: %w", legacyCacheRoot, err)
+	}
+
+	return nil
 }
 
 func DefaultConfigPath() (string, error) {

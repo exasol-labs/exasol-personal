@@ -27,22 +27,79 @@ func (c *testClock) Now() time.Time {
 	return c.now
 }
 
-func TestDefaultCacheRootUsesLauncherRuntimeArtifactsNamespace(t *testing.T) {
+func TestDefaultCacheRootUsesSharedLauncherCacheRoot(t *testing.T) {
 	t.Parallel()
 
+	// Given
+	want, err := launcherpaths.CacheRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve launcher cache root: %v", err)
+	}
+
+	// When
+	got, err := DefaultCacheRoot()
+	// Then
+	if err != nil {
+		t.Fatalf("expected cache root, got error: %v", err)
+	}
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestLegacyCacheRootUsesLauncherRuntimeArtifactsNamespace(t *testing.T) {
+	t.Parallel()
+
+	// Given
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatalf("failed to resolve user cache dir: %v", err)
 	}
 
-	root, err := DefaultCacheRoot()
+	// When
+	root, err := LegacyCacheRoot()
+	// Then
 	if err != nil {
 		t.Fatalf("expected cache root, got error: %v", err)
 	}
-
 	expected := filepath.Join(launcherpaths.DirPath(cacheDir), runtimeArtifactsDirName)
 	if root != expected {
 		t.Fatalf("expected %q, got %q", expected, root)
+	}
+}
+
+func TestDeleteLegacyCache_RemovesExistingRoot(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	dir := t.TempDir()
+	legacyRoot := filepath.Join(dir, "runtime-artifacts")
+	if err := os.MkdirAll(filepath.Join(legacyRoot, "artifacts"), dirPerm); err != nil {
+		t.Fatalf("failed to seed legacy cache root: %v", err)
+	}
+
+	// When
+	if err := DeleteLegacyCache(legacyRoot); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Then
+	if _, err := os.Stat(legacyRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy cache root to be removed, stat returned err=%v", err)
+	}
+}
+
+func TestDeleteLegacyCache_IsNoOpWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	legacyRoot := filepath.Join(t.TempDir(), "runtime-artifacts")
+
+	// When
+	err := DeleteLegacyCache(legacyRoot)
+	// Then
+	if err != nil {
+		t.Fatalf("expected no error when legacy cache root does not exist, got %v", err)
 	}
 }
 
