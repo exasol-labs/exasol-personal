@@ -6,10 +6,56 @@
 import json
 import os
 import subprocess
+import sys
+from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Any
 
 import pytest
+
+
+def launcher_home_overrides(home: Path) -> dict[str, str]:
+    """Environment overrides that move every launcher-owned location into home.
+
+    The launcher resolves its deployments, configuration, and cache locations
+    from platform-specific variables, so overriding the home variables alone
+    would leave a command reading and writing the real user's configuration
+    and cache directories.
+    """
+    return {
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "HOMEDRIVE": "",
+        "HOMEPATH": "",
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "APPDATA": str(home / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(home / "AppData" / "Local"),
+    }
+
+
+def env_with_home(home: Path) -> dict[str, str]:
+    """Build a full environment whose launcher-owned locations live inside home."""
+    env = os.environ.copy()
+    env.update(launcher_home_overrides(home))
+    return env
+
+
+def deployments_root(home: Path) -> Path:
+    """Where the launcher keeps managed deployments below an isolated home."""
+    if sys.platform == "win32":
+        return home / "AppData" / "Roaming" / "exasol" / "launcher" / "deployments"
+    if sys.platform == "darwin":
+        return (
+            home
+            / "Library"
+            / "Application Support"
+            / "exasol"
+            / "launcher"
+            / "deployments"
+        )
+
+    return home / ".exasol" / "launcher" / "deployments"
 
 
 def run_command(

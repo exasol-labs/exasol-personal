@@ -34,7 +34,10 @@ func TestListDeploymentDirectories_SortsAlphabeticallyAndIgnoresNonDirectories(t
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	mkdirTest(t, filepath.Join(deploymentsRoot, "staging"))
 	mkdirTest(t, filepath.Join(deploymentsRoot, "prod-aws"))
 	writeTestMarker(t, filepath.Join(deploymentsRoot, "not-a-directory"))
@@ -56,7 +59,10 @@ func TestListDeploymentDirectories_ReportsNotInitializedForUnrecognizedDirectory
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	mkdirTest(t, filepath.Join(deploymentsRoot, "empty"))
 
 	entries, err := listDeploymentDirectories(context.Background())
@@ -73,7 +79,10 @@ func TestListDeploymentDirectories_ReportsNotInitializedForLegacyMarkerOnlyDirec
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	legacyDir := filepath.Join(deploymentsRoot, "legacy")
 	mkdirTest(t, legacyDir)
 	writeTestMarker(t, filepath.Join(legacyDir, legacyWorkflowStateMarker))
@@ -95,7 +104,10 @@ func TestListDeploymentDirectories_ReportsUnparseableStateFileAsNotInitialized(t
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	corruptDir := filepath.Join(deploymentsRoot, "corrupt")
 	mkdirTest(t, corruptDir)
 	writeTestMarker(t, filepath.Join(corruptDir, config.ExasolPersonalStateFileName))
@@ -117,7 +129,10 @@ func TestListDeploymentDirectories_ReportsCanonicalStatusAndPresetIdentity(t *te
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	runningDir := filepath.Join(deploymentsRoot, "running")
 	mkdirTest(t, runningDir)
 	writeRunningStateWithPresetIdentity(t, runningDir, "name:aws", "name:standard")
@@ -153,7 +168,10 @@ func TestListDeploymentDirectories_ResolvesStatusesConcurrently(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	mkdirTest(t, filepath.Join(deploymentsRoot, "alpha"))
 	mkdirTest(t, filepath.Join(deploymentsRoot, "beta"))
 
@@ -195,7 +213,10 @@ func TestListDeploymentDirectories_StopsWaitingAtParentDeadline(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)
 	t.Chdir(t.TempDir())
-	deploymentsRoot := filepath.Join(config.LauncherDirPath(home), "deployments")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
 	mkdirTest(t, filepath.Join(deploymentsRoot, "alpha"))
 	mkdirTest(t, filepath.Join(deploymentsRoot, "beta"))
 	stubDeploymentStatus(t, func(

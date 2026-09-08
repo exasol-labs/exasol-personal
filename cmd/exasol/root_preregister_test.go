@@ -266,7 +266,11 @@ func TestDeploymentDirFromRawArgs_DeploymentFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	expected := filepath.Join(config.LauncherDirPath(home), "deployments", "staging")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
+	expected := filepath.Join(deploymentsRoot, "staging")
 	if deployment.Root() != expected {
 		t.Fatalf("expected deployment dir %q, got %q", expected, deployment.Root())
 	}
@@ -285,7 +289,11 @@ func TestDeploymentDirFromRawArgs_DeploymentShorthandFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	expected := filepath.Join(config.LauncherDirPath(home), "deployments", "staging")
+	deploymentsRoot, err := config.DeploymentsRootPath()
+	if err != nil {
+		t.Fatalf("failed to resolve deployments root: %v", err)
+	}
+	expected := filepath.Join(deploymentsRoot, "staging")
 	if deployment.Root() != expected {
 		t.Fatalf("expected deployment dir %q, got %q", expected, deployment.Root())
 	}
