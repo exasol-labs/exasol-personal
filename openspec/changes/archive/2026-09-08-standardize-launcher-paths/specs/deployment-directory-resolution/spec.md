@@ -1,8 +1,5 @@
-# deployment-directory-resolution Specification
+## MODIFIED Requirements
 
-## Purpose
-Define how Exasol Personal resolves the active deployment directory so users can run deployment commands without first creating or changing into a directory, while preserving explicit overrides and existing deployment-directory workflows.
-## Requirements
 ### Requirement: CLI SHALL resolve an active deployment directory
 Commands that operate on a deployment directory SHALL resolve exactly one active deployment directory before command-specific execution.
 
@@ -179,14 +176,7 @@ When commands resolve to the default deployment directory or to a named deployme
 - **AND** the command does not deploy the stale preset from the named deployment directory
 - **AND** the command tells the user to run `exasol destroy --remove` before initializing different presets, or `exasol remove` if the cloud resources are already gone
 
-### Requirement: Commands SHALL log the resolved deployment directory and how it was resolved
-Whenever a command resolves a deployment directory from a flag, the current working directory, or the default location, the launcher SHALL log the resolved path together with the resolution source so log trails are unambiguous about where the launcher is operating.
-
-#### Scenario: Resolved deployment directory and source are logged
-- **WHEN** a command resolves its deployment directory
-- **THEN** the launcher emits a structured log entry containing the resolved deployment directory path
-- **AND** the log entry contains the resolution source (`explicit`, `named`, `current`, or `default`)
-- **AND** the log entry is emitted regardless of whether the directory was supplied explicitly, selected by name, inferred from the current directory, or defaulted
+## ADDED Requirements
 
 ### Requirement: Managed deployments SHALL resolve under a platform-specific root
 The managed-deployments root SHALL be a platform-conventional, launcher-owned directory distinct from the launcher's configuration and cache locations, rather than one flat path shared across platforms.
