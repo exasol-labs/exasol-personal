@@ -6,12 +6,14 @@ package connect
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/exasol/exasol-personal/internal/connect/readline"
 	"github.com/exasol/exasol-personal/internal/connect/types"
 	"github.com/exasol/exasol-personal/internal/connect/types/typesfakes"
+	"github.com/exasol/exasol-personal/internal/launcherpaths"
 	"github.com/stretchr/testify/require"
 )
 
@@ -547,4 +549,35 @@ func TestScriptWithoutSlashFlushedWholeAtEOF(t *testing.T) {
 			"class M { double run() { return x * 2.0; } }",
 		processor.inputs[0],
 	)
+}
+
+func TestHistoryFilePath_ResolvesUnderTheLauncherHistoryRoot(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	want, err := launcherpaths.HistoryRootPath()
+	require.NoError(t, err)
+
+	// When
+	got, err := HistoryFilePath()
+
+	// Then
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(want, historyFileName), got)
+}
+
+//nolint:paralleltest // home-directory environment is process-global.
+func TestEnsureHistoryFileDir_CreatesTheDirectoryOnAFreshInstall(t *testing.T) {
+	// Given a home with no history directory, as after a fresh install
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	// When
+	path, err := ensureHistoryFileDir()
+
+	// Then the file can be created where readline will look for it
+	require.NoError(t, err)
+	require.DirExists(t, filepath.Dir(path))
 }
