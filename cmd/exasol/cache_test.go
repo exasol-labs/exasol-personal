@@ -70,7 +70,10 @@ func TestCacheListCommandInitializesConfig(t *testing.T) {
 		t.Fatalf("expected no stderr output, got %q", stderr.String())
 	}
 
-	expectedConfig := filepath.Join(config.LauncherDirPath(home), "runtime-artifacts.yaml")
+	expectedConfig, err := runtimeartifacts.DefaultConfigPath()
+	if err != nil {
+		t.Fatalf("failed to resolve expected config path: %v", err)
+	}
 	if _, err := os.Stat(expectedConfig); err != nil {
 		t.Fatalf("expected cache config to be created, got %v", err)
 	}

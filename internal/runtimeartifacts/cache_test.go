@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,16 +46,38 @@ func TestDefaultCacheRootUsesLauncherRuntimeArtifactsNamespace(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // home-directory environment is process-global.
-func TestDefaultConfigPathUsesLauncherRootDirectory(t *testing.T) {
-	home := t.TempDir()
-	setRuntimeArtifactsTestHome(t, home)
+func TestDefaultConfigPathUsesResourceConfigFile(t *testing.T) {
+	t.Parallel()
 
-	path, err := DefaultConfigPath()
+	// Given
+	want, err := launcherpaths.ResourceConfigFilePath()
+	if err != nil {
+		t.Fatalf("failed to resolve resource config file path: %v", err)
+	}
+
+	// When
+	got, err := DefaultConfigPath()
+	// Then
 	if err != nil {
 		t.Fatalf("expected config path, got error: %v", err)
 	}
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
 
+//nolint:paralleltest // home-directory environment is process-global.
+func TestLegacyConfigPathUsesLauncherRootDirectory(t *testing.T) {
+	// Given
+	home := t.TempDir()
+	setRuntimeArtifactsTestHome(t, home)
+
+	// When
+	path, err := LegacyConfigPath()
+	// Then
+	if err != nil {
+		t.Fatalf("expected config path, got error: %v", err)
+	}
 	expected := filepath.Join(launcherpaths.DirPath(home), cacheConfigFileName)
 	if path != expected {
 		t.Fatalf("expected %q, got %q", expected, path)
@@ -66,7 +87,7 @@ func TestDefaultConfigPathUsesLauncherRootDirectory(t *testing.T) {
 func TestEnsureCacheConfigCreatesDefaultAndRejectsInvalidRetention(t *testing.T) {
 	t.Parallel()
 
-	configPath := filepath.Join(t.TempDir(), "config", cacheConfigFileName)
+	configPath := filepath.Join(t.TempDir(), "config", "resources.yaml")
 
 	cfg, err := EnsureCacheConfig(configPath)
 	if err != nil {
@@ -83,8 +104,10 @@ func TestEnsureCacheConfigCreatesDefaultAndRejectsInvalidRetention(t *testing.T)
 		t.Fatalf("expected retention_days in config, got: %s", string(content))
 	}
 
-	if err := os.WriteFile(configPath, []byte("retention_days: 0\n"), filePerm); err != nil {
-		t.Fatalf("failed to write invalid config: %v", err)
+	invalidCfg := CacheConfig{RetentionDays: 0}
+	writeErr := writeCacheConfig(configPath, invalidCfg)
+	if writeErr != nil {
+		t.Fatalf("failed to write invalid config: %v", writeErr)
 	}
 	_, _, err = LoadCacheConfig(configPath)
 	if !errors.Is(err, ErrInvalidCacheConfig) {
@@ -553,7 +576,7 @@ func newTestCache(t *testing.T, now time.Time) *Cache {
 
 	clk := &testClock{now: now}
 	root := filepath.Join(t.TempDir(), "cache")
-	configPath := filepath.Join(t.TempDir(), "config", cacheConfigFileName)
+	configPath := filepath.Join(t.TempDir(), "config", "resources.yaml")
 
 	return newCacheWithClock(root, configPath, clk)
 }
@@ -561,11 +584,8 @@ func newTestCache(t *testing.T, now time.Time) *Cache {
 func writeTestCacheConfig(t *testing.T, cache *Cache, retentionDays int) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(cache.configPath), dirPerm); err != nil {
-		t.Fatalf("failed to create config directory: %v", err)
-	}
-	content := "retention_days: " + strconv.Itoa(retentionDays) + "\n"
-	if err := os.WriteFile(cache.configPath, []byte(content), filePerm); err != nil {
+	cfg := CacheConfig{RetentionDays: retentionDays}
+	if err := writeCacheConfig(cache.configPath, cfg); err != nil {
 		t.Fatalf("failed to write cache config: %v", err)
 	}
 }

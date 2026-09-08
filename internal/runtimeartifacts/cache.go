@@ -137,6 +137,12 @@ func DefaultCacheRoot() (string, error) {
 }
 
 func DefaultConfigPath() (string, error) {
+	return launcherpaths.ResourceConfigFilePath()
+}
+
+// LegacyConfigPath exists only so an existing file there can be migrated
+// to DefaultConfigPath.
+func LegacyConfigPath() (string, error) {
 	rootDir, err := launcherpaths.RootDirPath()
 	if err != nil {
 		return "", err
@@ -184,16 +190,18 @@ func DefaultCacheConfig() CacheConfig {
 
 func LoadCacheConfig(path string) (CacheConfig, bool, error) {
 	cfg := DefaultCacheConfig()
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return cfg, false, nil
 		}
 
-		return cfg, false, err
+		return cfg, false, fmt.Errorf("read cache config %s: %w", path, err)
 	}
+
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return cfg, true, err
+		return cfg, true, fmt.Errorf("parse cache config %s: %w", path, err)
 	}
 	if err := validateCacheConfig(cfg); err != nil {
 		return cfg, true, err
@@ -208,15 +216,23 @@ func EnsureCacheConfig(path string) (CacheConfig, error) {
 		return cfg, err
 	}
 
+	return cfg, writeCacheConfig(path, cfg)
+}
+
+func writeCacheConfig(path string, cfg CacheConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return cfg, err
-	}
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return cfg, err
+		return fmt.Errorf("create directory for cache config %s: %w", path, err)
 	}
 
-	return cfg, os.WriteFile(path, data, filePerm)
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("encode cache config %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, data, filePerm); err != nil {
+		return fmt.Errorf("write cache config %s: %w", path, err)
+	}
+
+	return nil
 }
 
 func validateCacheConfig(cfg CacheConfig) error {
