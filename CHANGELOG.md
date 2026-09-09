@@ -65,6 +65,8 @@ Notable user-facing changes to Exasol Personal are documented here.
 
 ### Fixed
 
+- Local UDFs and Virtual Schemas now work on Linux hosts with SELinux enforcing.
+
 - `exasol slc install` and `exasol slc update` now accept the flavors shown by
   `exasol slc list`, in addition to aliases. The list displays aliases first and recommends them
   as the stable identifiers for commands.
