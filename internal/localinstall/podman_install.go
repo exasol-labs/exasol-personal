@@ -30,6 +30,7 @@ const (
 	nanoShmSize               = "512mb"
 	nanoPIDsLimit             = "-1"
 	nanoSecurityOpt           = "unmask=ALL"
+	nanoSELinuxSecurityOpt    = "label=disable"
 	nanoRestartPolicy         = "always"
 	// nanoDataMountPath is where Nano expects its persistent data inside the
 	// container; the target adds SELinux relabelling for the bind mount.
@@ -207,6 +208,7 @@ func (install *PodmanInstall) Start(
 		"--shm-size=" + nanoShmSize,
 		"--pids-limit=" + nanoPIDsLimit,
 		"--security-opt", nanoSecurityOpt,
+		"--security-opt", nanoSELinuxSecurityOpt,
 		"--restart", nanoRestartPolicy,
 		"-p", podmanDBPortMapping(startConfig),
 		"-v", startConfig.DataDir + ":" + nanoDataMountTarget,

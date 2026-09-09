@@ -50,6 +50,7 @@ func TestPodmanInstallStart_StartsFreshPersistentDatabase(t *testing.T) {
 		"<sync>",
 		"<podman><run><-d><--replace><--name><" + testContainerName + ">" +
 			"<--shm-size=512mb><--pids-limit=-1><--security-opt><unmask=ALL>" +
+			"<--security-opt><label=disable>" +
 			"<--restart><always><-p><127.0.0.1:28563:8563>" +
 			"<-v><" + startConfig.DataDir + ":/exa:Z>" +
 			"<" + testLoadedImage + "><init><params=maxConnectionsLicenseLimit=20>" +
