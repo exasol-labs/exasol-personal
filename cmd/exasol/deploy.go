@@ -31,7 +31,7 @@ var deployCmd = &cobra.Command{
 			deployment,
 			commonFlags.DeployVerbose,
 			deploy.DeployOptions{
-				UpdateDependencyLockfile: commonFlags.DeployTofuUpdateLockfile,
+				BackendOptions: collectBackendOptions(cmd),
 				RuntimePreparation: hostRuntimePreparationOptions(
 					cmd, rootOpts.ApprovalMode(),
 				),
@@ -53,6 +53,5 @@ func init() {
 	requireDeploymentFileLogging(deployCmd)
 	registerDeploymentDirFlag(deployCmd, commonFlags)
 	registerVerboseFlag(deployCmd, commonFlags)
-	registerDeployFlags(deployCmd, commonFlags)
 	rootCmd.AddCommand(deployCmd)
 }

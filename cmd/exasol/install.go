@@ -57,7 +57,6 @@ func init() {
 	registerInitFlags(installCmd, commonFlags)
 	registerDeploymentDirFlag(installCmd, commonFlags)
 	registerVerboseFlag(installCmd, commonFlags)
-	registerDeployFlags(installCmd, commonFlags)
 	rootCmd.AddCommand(installCmd)
 }
 
@@ -164,7 +163,7 @@ func runInstallPersistentPostRun(cmd *cobra.Command, _ []string) error {
 		deployment,
 		commonFlags.DeployVerbose,
 		deploy.DeployOptions{
-			UpdateDependencyLockfile: commonFlags.DeployTofuUpdateLockfile,
+			BackendOptions: collectBackendOptions(cmd),
 			RuntimePreparation: hostRuntimePreparationOptions(
 				cmd, rootOpts.ApprovalMode(),
 			),

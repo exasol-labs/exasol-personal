@@ -108,7 +108,6 @@ func TestScanPresetFromArgs_BooleanFlagsBeforeInfrastructurePreset(t *testing.T)
 	}{
 		{name: "verbose", flag: "--verbose"},
 		{name: "verbose shorthand", flag: "-v"},
-		{name: "tofu lockfile update", flag: "--tofu-update-lockfile"},
 		{name: "launcher version check", flag: "--no-launcher-version-check"},
 	}
 

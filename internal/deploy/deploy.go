@@ -155,6 +155,13 @@ func deployLocked(
 	if err != nil {
 		return err
 	}
+
+	// Runs before anything is recorded as in progress, so a rejected invocation
+	// leaves the deployment untouched.
+	if err := validateDeployOptionsForManifest(infrastructureManifest, options); err != nil {
+		return err
+	}
+
 	backend, err := newDeploymentBackend(ctx, deployment, infrastructureManifest)
 	if err != nil {
 		return err

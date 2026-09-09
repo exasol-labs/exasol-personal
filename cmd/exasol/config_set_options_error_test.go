@@ -7,12 +7,9 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/exasol/exasol-personal/internal/config"
 )
 
 const localInfrastructureManifestForConfigSet = `name: Exasol Local on macOS
@@ -24,34 +21,10 @@ local:
   dataSizeGB: 100
 `
 
-// writeInitializedLocalDeployment creates a deployment directory that looks like a
-// local deployment in the initialized state (the state a deployment returns to after
-// `exasol destroy`), so `config set` can resolve its infrastructure options.
 func writeInitializedLocalDeployment(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
-	dep := config.NewDeploymentDir(dir)
 
-	if err := os.MkdirAll(filepath.Dir(dep.InfrastructureManifestPath()), 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(
-		dep.InfrastructureManifestPath(),
-		[]byte(localInfrastructureManifestForConfigSet),
-		0o600,
-	); err != nil {
-		t.Fatalf("write manifest: %v", err)
-	}
-
-	state := &config.ExasolPersonalState{DeploymentId: "local", ClusterIdentity: "local"}
-	if err := state.SetWorkflowState(&config.WorkflowStateInitialized{}); err != nil {
-		t.Fatalf("set state: %v", err)
-	}
-	if err := config.WriteExasolPersonalState(state, dep); err != nil {
-		t.Fatalf("write state: %v", err)
-	}
-
-	return dir
+	return writeInitializedDeployment(t, localInfrastructureManifestForConfigSet)
 }
 
 // A non-help `config set` against a directory that is not an initialized deployment must

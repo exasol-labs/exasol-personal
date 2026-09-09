@@ -19,6 +19,9 @@ func init() {
 	cobra.AddTemplateFunc("hasInstallationVariableFlags", hasInstallationVariableFlags)
 	cobra.AddTemplateFunc("installationVariableFlagsTitle", installationVariableFlagsTitle)
 	cobra.AddTemplateFunc("installationVariableFlagUsages", installationVariableFlagUsages)
+	cobra.AddTemplateFunc("hasBackendOptionFlags", hasBackendOptionFlags)
+	cobra.AddTemplateFunc("backendOptionFlagsTitle", backendOptionFlagsTitle)
+	cobra.AddTemplateFunc("backendOptionFlagUsages", backendOptionFlagUsages)
 	cobra.AddTemplateFunc("hasGlobalFlags", hasGlobalFlags)
 	cobra.AddTemplateFunc("globalFlagUsages", globalFlagUsages)
 	cobra.AddTemplateFunc("commandsInGroup", commandsInGroup)
@@ -155,6 +158,43 @@ func installationVariableFlagUsages(cmd *cobra.Command) string {
 	return strings.TrimRight(flagset.FlagUsages(), "\n")
 }
 
+func hasBackendOptionFlags(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+
+	for _, flagName := range backendOptionFlagNames(cmd) {
+		if flag := cmd.LocalNonPersistentFlags().Lookup(flagName); flag != nil && !flag.Hidden {
+			return true
+		}
+	}
+
+	return false
+}
+
+func backendOptionFlagsTitle(cmd *cobra.Command) string {
+	label := ""
+	if cmd != nil && cmd.Annotations != nil {
+		label = strings.TrimSpace(cmd.Annotations[backendOptionPresetLabelAnnotationKey])
+	}
+	if label == "" {
+		return "Backend option flags:"
+	}
+
+	return fmt.Sprintf("Backend option flags of preset `%s`:", label)
+}
+
+func backendOptionFlagUsages(cmd *cobra.Command) string {
+	flagset := pflag.NewFlagSet("backend-options", pflag.ContinueOnError)
+	for _, flagName := range backendOptionFlagNames(cmd) {
+		if f := cmd.LocalNonPersistentFlags().Lookup(flagName); f != nil {
+			flagset.AddFlag(f)
+		}
+	}
+
+	return strings.TrimRight(flagset.FlagUsages(), "\n")
+}
+
 func commandsInGroup(cmd *cobra.Command, groupID string) []*cobra.Command {
 	if cmd == nil {
 		return nil
@@ -236,6 +276,9 @@ func otherLocalFlags(cmd *cobra.Command) []*pflag.Flag {
 		if isInstallationVariableFlagName(flag.Name) {
 			return
 		}
+		if isBackendOptionFlagName(cmd, flag.Name) {
+			return
+		}
 		flags = append(flags, flag)
 	})
 
@@ -279,6 +322,9 @@ const customUsageTemplate = `Usage:
 
 {{end}}{{if hasInstallationVariableFlags .}}{{installationVariableFlagsTitle .}}
 {{installationVariableFlagUsages . | trimTrailingWhitespaces}}
+
+{{end}}{{if hasBackendOptionFlags .}}{{backendOptionFlagsTitle .}}
+{{backendOptionFlagUsages . | trimTrailingWhitespaces}}
 
 {{end}}{{if hasOtherLocalFlags .}}Flags:
 {{otherLocalFlagUsages . | trimTrailingWhitespaces}}

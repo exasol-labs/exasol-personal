@@ -17,6 +17,7 @@ import (
 	"github.com/exasol/exasol-personal/internal/config"
 	"github.com/exasol/exasol-personal/internal/localruntime"
 	"github.com/exasol/exasol-personal/internal/presets"
+	"github.com/exasol/exasol-personal/internal/runtimeartifacts"
 	"github.com/exasol/exasol-personal/internal/util"
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +53,31 @@ var errUnsupportedLocalPlatform = errors.New(
 	"local deployments are only supported on macOS Apple Silicon, " +
 		"Linux amd64/arm64, and Windows amd64",
 )
+
+// The local backend needs nothing per invocation: its settings are fixed by the
+// host platform or persisted as deployment configuration.
+var localBackendDescriptor = backendDescriptor{
+	kind: backendTypeLocal,
+	newBackend: func(
+		deployment config.DeploymentDir,
+		manifest *presets.InfrastructureManifest,
+		manager *runtimeartifacts.Manager,
+	) (deploymentBackend, error) {
+		localRuntime, err := newLocalRuntime(deployment, manager)
+		if err != nil {
+			return nil, err
+		}
+
+		return newLocalBackend(deployment, manifest, localRuntime), nil
+	},
+	presetConfigVariables: func(
+		ctx context.Context,
+		_ PresetRef,
+		manifest *presets.InfrastructureManifest,
+	) (map[string]ConfigVariableDefinition, error) {
+		return localConfigVariableDefinitions(ctx, manifest), nil
+	},
+}
 
 func newLocalBackend(
 	deployment config.DeploymentDir,
