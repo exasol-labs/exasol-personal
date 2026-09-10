@@ -150,6 +150,56 @@ func TestCheckOfficialAliasNotHeldByCustom(t *testing.T) {
 	}
 }
 
+func TestCheckCustomSLCInternalAliasConflicts(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	state := &config.ExasolPersonalState{
+		InstalledSLCs: []config.InstalledSLC{{Flavor: "python-3.12", Aliases: []string{"PYTHON3"}}},
+		InstalledCustomSLCs: []config.InstalledCustomSLC{
+			{Alias: "FIRST", PackageAliases: []string{"JAVA"}},
+			{Alias: "OTHER", PackageAliases: []string{"RUST"}},
+		},
+	}
+	deployment := config.NewDeploymentDir(t.TempDir())
+
+	// When / Then
+	err := checkCustomSLCInternalAliasConflicts(
+		deployment, state, []string{"rust"}, -1, "install", "NEW",
+	)
+	if err == nil {
+		t.Fatal("expected conflict with another custom SLC")
+	}
+	want := `cannot install custom SLC "NEW": an alias defined in this package, "RUST"`
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("unexpected conflict message %q", err)
+	}
+	if err := checkCustomSLCInternalAliasConflicts(
+		deployment, state, []string{"rust"}, 1, "update", "OTHER",
+	); err != nil {
+		t.Fatalf("expected update to retain its own alias, got %v", err)
+	}
+	err = checkCustomSLCInternalAliasConflicts(
+		deployment, state, []string{"rust"}, 0, "update", "FIRST",
+	)
+	if err == nil {
+		t.Fatal("expected update conflict with another custom SLC")
+	}
+	if want := `cannot update custom SLC "FIRST"`; !strings.Contains(err.Error(), want) {
+		t.Fatalf("unexpected update conflict message %q", err)
+	}
+	if err := checkCustomSLCInternalAliasConflicts(
+		deployment, state, []string{"rust"}, 1, "install", "OTHER",
+	); err != nil {
+		t.Fatalf("expected install replacement to retain its own alias, got %v", err)
+	}
+	if err := checkCustomSLCInternalAliasConflicts(
+		deployment, state, []string{"unique"}, -1, "install", "NEW",
+	); err != nil {
+		t.Fatalf("expected unique alias to pass, got %v", err)
+	}
+}
+
 func TestCustomSLCNamesAreDerivedFromAliasAndDigest(t *testing.T) {
 	t.Parallel()
 
@@ -531,7 +581,7 @@ func TestAcquireCustomTarballURLFailsOnNon200(t *testing.T) {
 	}
 }
 
-func TestAcquireCustomTarballFromFileIsNeverDeleted(t *testing.T) {
+func TestAcquireCustomTarballFromFileSnapshotsAndCleansUp(t *testing.T) {
 	t.Parallel()
 
 	// Given
@@ -549,14 +599,17 @@ func TestAcquireCustomTarballFromFileIsNeverDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tarball.path != path {
-		t.Fatalf("expected the file used in place, got %s", tarball.path)
+	if tarball.path == path {
+		t.Fatal("expected the local source to be copied to a snapshot")
 	}
 	if want := fmt.Sprintf("%x", sha256.Sum256(content)); tarball.sha256 != want {
 		t.Fatalf("digest = %s, want %s", tarball.sha256, want)
 	}
 
 	tarball.cleanup()
+	if _, err := os.Stat(tarball.path); !os.IsNotExist(err) {
+		t.Fatalf("expected the snapshot removed after cleanup, got %v", err)
+	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("cleanup must not delete a user-supplied source: %v", err)
 	}
@@ -655,31 +708,6 @@ func TestAcquireCustomTarballDownloadsIntoTheStagingDirectory(t *testing.T) {
 	)
 	if err != nil || !bytes.Equal(got, body) {
 		t.Fatalf("promoted content mismatch: %q err %v", got, err)
-	}
-}
-
-func TestAcquireCustomTarballFromFileIsNotStaged(t *testing.T) {
-	t.Parallel()
-
-	// Given
-	path := filepath.Join(t.TempDir(), "c.tar.gz")
-	if err := os.WriteFile(path, []byte("file-bytes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// When
-	tarball, err := acquireCustomTarball(
-		context.Background(), config.NewDeploymentDir(t.TempDir()), path,
-	)
-	// Then
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tarball.staged {
-		t.Fatal("a user-supplied file must not be reported as staged")
-	}
-	if tarball.path != path {
-		t.Fatalf("expected the file used in place, got %s", tarball.path)
 	}
 }
 

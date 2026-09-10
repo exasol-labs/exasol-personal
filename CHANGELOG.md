@@ -67,6 +67,10 @@ Notable user-facing changes to Exasol Personal are documented here.
 
 - Local UDFs and Virtual Schemas now work on Linux hosts with SELinux enforcing.
 
+- Custom SLC installation now rejects duplicate aliases declared by another installed custom SLC
+  before the database is restarted. Updating an existing custom SLC alias remains supported,
+  including replacing it with a different package.
+
 - `exasol slc install` and `exasol slc update` now accept the flavors shown by
   `exasol slc list`, in addition to aliases. The list displays aliases first and recommends them
   as the stable identifiers for commands.
