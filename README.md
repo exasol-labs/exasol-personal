@@ -35,7 +35,7 @@ does not impose an artificial data-size limit.
 
 On macOS, Linux, and Windows (WSL), install the launcher with:
 ```bash
-curl https://www.exasol.com/install/ | sh
+curl https://downloads.exasol.com/exasol-personal/installer.sh | sh
 ```
 
 For a quick start and a general overview of the available commands, type:
@@ -50,9 +50,16 @@ For next steps, read the [user documentation](https://exasol.github.io/exasol-pe
 It also covers the system requirements and supported deployment targets, as well as tutorials,
 command guidance, and troubleshooting information.
 
-AI coding agents can use
-[agent skills](https://github.com/exasol-labs/exasol-agent-skills) to install Exasol Personal,
-connect to it, load data, and write Exasol SQL.
+If you work with AI coding agents, the
+[Exasol Personal Local Starter Kit](https://github.com/exasol-labs/exasol-personal-local-starterkit)
+bundles an MCP server, agent skills, and other components that let your agent work with Exasol
+directly.
+
+Install it with:
+
+```bash
+curl https://www.exasol.com/install/ | sh
+```
 
 ## 🛠️ Development and contributions
 

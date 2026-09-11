@@ -17,7 +17,7 @@ To install and run Exasol Personal locally on macOS, Linux, or Windows, follow t
 Install the launcher:
 
 ```bash
-curl https://www.exasol.com/install/ | sh
+curl https://downloads.exasol.com/exasol-personal/installer.sh | sh
 ```
 
 The installer places the `exasol` binary in `~/.local/bin`. If that directory is not in `PATH`,
