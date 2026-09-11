@@ -17,6 +17,11 @@ func TestValidateArchiveAcceptsValidSLC(t *testing.T) {
 	// Given
 	archive := gzipBytes(t, buildTar(t, []archiveEntry{
 		{name: "exaudf/exaudfclient", body: "#!/bin/sh\n", mode: 0o755},
+		{
+			name: "build_info/language_definitions.json",
+			body: `{"language_definitions":[{"aliases":["PYTHON3"]}]}`,
+			mode: 0o644,
+		},
 		{name: "python/runtime", body: "x", mode: 0o644},
 	}))
 
@@ -34,6 +39,11 @@ func TestValidateArchiveAcceptsUncompressedTar(t *testing.T) {
 	// Given
 	archive := buildTar(t, []archiveEntry{
 		{name: "exaudf/exaudfclient", body: "#!/bin/sh\n", mode: 0o755},
+		{
+			name: "build_info/language_definitions.json",
+			body: `{"language_definitions":[{"aliases":["PYTHON3"]}]}`,
+			mode: 0o644,
+		},
 	})
 
 	// When
@@ -41,6 +51,70 @@ func TestValidateArchiveAcceptsUncompressedTar(t *testing.T) {
 	// Then
 	if err != nil {
 		t.Fatalf("expected an uncompressed tar to pass, got %v", err)
+	}
+}
+
+func TestReadAliasesReturnsAllNormalizedAliases(t *testing.T) {
+	t.Parallel()
+
+	archive := gzipBytes(t, buildTar(t, []archiveEntry{
+		{name: "exaudf/exaudfclient", body: "#!/bin/sh\n", mode: 0o755},
+		{
+			name: "build_info/language_definitions.json",
+			body: `{"language_definitions":[{"aliases":["rust", " RUST2 "]},` +
+				`{"aliases":["Rust3"]}]}`,
+			mode: 0o644,
+		},
+	}))
+
+	aliases, err := ReadAliases(bytes.NewReader(archive))
+	if err != nil {
+		t.Fatalf("expected aliases to be read, got %v", err)
+	}
+	if strings.Join(aliases, ",") != "RUST,RUST2,RUST3" {
+		t.Fatalf("unexpected aliases: %v", aliases)
+	}
+}
+
+func TestReadAliasesRejectsMalformedOrMissingMetadata(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{"not json", `{"language_definitions":[]}`} {
+		archive := gzipBytes(t, buildTar(t, []archiveEntry{
+			{name: "exaudf/exaudfclient", body: "#!/bin/sh\n", mode: 0o755},
+			{name: "build_info/language_definitions.json", body: body, mode: 0o644},
+		}))
+		if _, err := ReadAliases(bytes.NewReader(archive)); err == nil {
+			t.Fatalf("expected metadata %q to be rejected", body)
+		}
+	}
+}
+
+func TestReadAliasesRejectsDuplicateMetadata(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	archive := gzipBytes(t, buildTar(t, []archiveEntry{
+		{name: "exaudf/exaudfclient", body: "#!/bin/sh\n", mode: 0o755},
+		{
+			name: "build_info/language_definitions.json",
+			body: `{"language_definitions":[{"aliases":["PYTHON3"]}]}`,
+			mode: 0o644,
+		},
+		{
+			name: "build_info/language_definitions.json",
+			body: `{"language_definitions":[{"aliases":["RUST"]}]}`,
+			mode: 0o644,
+		},
+	}))
+
+	// When
+	_, err := ReadAliases(bytes.NewReader(archive))
+
+	// Then
+	duplicateMetadata := "duplicate build_info/language_definitions.json"
+	if err == nil || !strings.Contains(err.Error(), duplicateMetadata) {
+		t.Fatalf("expected duplicate metadata to be rejected, got %v", err)
 	}
 }
 

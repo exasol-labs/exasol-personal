@@ -66,6 +66,10 @@ Custom `install` and `update` restart the database and support `--auto-approve` 
 If the container cannot be activated, the database still starts but the command reports that the
 container is recorded as pending.
 
+A custom package can define one or more database aliases. The launcher rejects an installation when
+those aliases are already provided by another installed custom SLC. Updating an existing custom SLC
+replaces that SLC, so its own aliases may remain unchanged.
+
 Removing a custom container takes effect immediately and does not accept the restart options. The
 deployment must be running to remove an active alias through the database. A container recorded but
 never activated can be removed while the deployment is stopped.

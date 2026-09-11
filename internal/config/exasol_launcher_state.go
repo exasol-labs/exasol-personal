@@ -103,15 +103,16 @@ type InstalledSLC struct {
 }
 
 type InstalledCustomSLC struct {
-	Alias        string `json:"alias"`
-	Language     string `json:"language"`
-	Image        string `json:"image"`
-	Target       string `json:"target"`
-	Package      string `json:"package"`
-	Sha256       string `json:"sha256"`
-	Source       string `json:"source"`
-	Activated    bool   `json:"activated"`
-	DisplacedURI string `json:"displacedUri,omitempty"`
+	Alias          string   `json:"alias"`
+	PackageAliases []string `json:"packageAliases,omitempty"`
+	Language       string   `json:"language"`
+	Image          string   `json:"image"`
+	Target         string   `json:"target"`
+	Package        string   `json:"package"`
+	Sha256         string   `json:"sha256"`
+	Source         string   `json:"source"`
+	Activated      bool     `json:"activated"`
+	DisplacedURI   string   `json:"displacedUri,omitempty"`
 }
 
 // HasExasolPersonalStateFile reports whether the deployment state file exists.
