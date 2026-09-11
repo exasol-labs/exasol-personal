@@ -31,8 +31,7 @@ type CommonFlags struct {
 	OutputJson bool
 
 	// Common flags for deploy-like commands (deploy + install).
-	DeployVerbose            bool
-	DeployTofuUpdateLockfile bool
+	DeployVerbose bool
 }
 
 // commonFlags is the default runtime instance used by the actual CLI commands.
@@ -80,15 +79,6 @@ func registerDeploymentDirFlag(cmd *cobra.Command, state *CommonFlags) {
 		),
 	)
 	cmd.MarkFlagsMutuallyExclusive(deploymentDirFlagName, deploymentNameFlagName)
-}
-
-func registerDeployFlags(cmd *cobra.Command, state *CommonFlags) {
-	cmd.Flags().BoolVar(
-		&state.DeployTofuUpdateLockfile,
-		"tofu-update-lockfile",
-		false,
-		"Allow OpenTofu to update .terraform.lock.hcl during init",
-	)
 }
 
 func registerOutputFlags(cmd *cobra.Command, state *CommonFlags) {

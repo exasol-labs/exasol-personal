@@ -21,14 +21,11 @@ const (
 	backendTypeLocal = "local"
 )
 
-// DeployOptions carries backend-agnostic options for a single deploy invocation.
-// Individual backends interpret the options they understand and ignore the rest.
+// DeployOptions carries the options for a single deploy invocation.
 type DeployOptions struct {
-	// UpdateDependencyLockfile signals that the backend may update any
-	// dependency lockfile during initialization (e.g. OpenTofu's
-	// .terraform.lock.hcl). When false, the backend must treat any such
-	// lockfile as read-only.
-	UpdateDependencyLockfile bool
+	// Keyed by option name. Validated against the backend's declaration before
+	// the backend runs, so a backend only receives options it declared.
+	BackendOptions map[string]string
 
 	// RuntimePreparation carries the approval and progress policy applied
 	// before the deployment records an operation in progress.
@@ -85,17 +82,17 @@ func resolveBackendKind(manifest *presets.InfrastructureManifest) (string, error
 		backend = backendTypeTofu
 	}
 
-	switch backend {
-	case backendTypeTofu, backendTypeLocal:
-		return backend, nil
-	case "":
+	if backend == "" {
 		return "", fmt.Errorf(
 			"%w: infrastructure manifest does not declare a supported backend",
 			ErrUnknownDeploymentType,
 		)
-	default:
-		return "", fmt.Errorf("%w: %q", ErrUnknownDeploymentType, backend)
 	}
+	if _, err := backendDescriptorForKind(backend); err != nil {
+		return "", err
+	}
+
+	return backend, nil
 }
 
 func newDeploymentBackendForDeployment(
@@ -115,26 +112,12 @@ func newDeploymentBackend(
 	deployment config.DeploymentDir,
 	manifest *presets.InfrastructureManifest,
 ) (deploymentBackend, error) {
-	kind, err := resolveBackendKind(manifest)
+	descriptor, err := backendDescriptorForManifest(manifest)
 	if err != nil {
 		return nil, err
 	}
 
-	manager := runtimeartifacts.FromContext(ctx)
-
-	switch kind {
-	case backendTypeTofu:
-		return newTofuBackend(deployment, manifest, manager), nil
-	case backendTypeLocal:
-		localRuntime, err := newLocalRuntime(deployment, manager)
-		if err != nil {
-			return nil, err
-		}
-
-		return newLocalBackend(deployment, manifest, localRuntime), nil
-	default:
-		return nil, fmt.Errorf("%w: %q", ErrUnknownDeploymentType, kind)
-	}
+	return descriptor.newBackend(deployment, manifest, runtimeartifacts.FromContext(ctx))
 }
 
 // readInfrastructurePresetConfigVariables exposes a preset's configurable
@@ -147,23 +130,12 @@ func readInfrastructurePresetConfigVariables(
 	preset PresetRef,
 	manifest *presets.InfrastructureManifest,
 ) (map[string]ConfigVariableDefinition, error) {
-	kind, err := resolveBackendKind(manifest)
+	descriptor, err := backendDescriptorForManifest(manifest)
 	if err != nil {
 		return nil, err
 	}
 
-	switch kind {
-	case backendTypeTofu:
-		if manifest.Tofu == nil {
-			return map[string]ConfigVariableDefinition{}, nil
-		}
-
-		return readTofuPresetConfigVariables(ctx, preset, *manifest.Tofu)
-	case backendTypeLocal:
-		return localConfigVariableDefinitions(ctx, manifest), nil
-	default:
-		return nil, fmt.Errorf("%w: %q", ErrUnknownDeploymentType, kind)
-	}
+	return descriptor.presetConfigVariables(ctx, preset, manifest)
 }
 
 func newLocalRuntime(

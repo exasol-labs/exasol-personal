@@ -57,6 +57,39 @@ type tofuBackend struct {
 	defaultsErr    error
 }
 
+const tofuUpdateLockfileOption = "tofu-update-lockfile"
+
+var tofuBackendDescriptor = backendDescriptor{
+	kind: backendTypeTofu,
+	deployOptions: []DeployOptionDefinition{
+		{
+			Name:        tofuUpdateLockfileOption,
+			Description: "Allow OpenTofu to update .terraform.lock.hcl during init",
+			Type:        ConfigVariableTypeBool,
+		},
+	},
+	newBackend: func(
+		deployment config.DeploymentDir,
+		manifest *presets.InfrastructureManifest,
+		manager *runtimeartifacts.Manager,
+	) (deploymentBackend, error) {
+		return newTofuBackend(deployment, manifest, manager), nil
+	},
+	presetConfigVariables: tofuPresetConfigVariables,
+}
+
+func tofuPresetConfigVariables(
+	ctx context.Context,
+	preset PresetRef,
+	manifest *presets.InfrastructureManifest,
+) (map[string]ConfigVariableDefinition, error) {
+	if manifest == nil || manifest.Tofu == nil {
+		return map[string]ConfigVariableDefinition{}, nil
+	}
+
+	return readTofuPresetConfigVariables(ctx, preset, *manifest.Tofu)
+}
+
 func newTofuBackend(
 	deployment config.DeploymentDir,
 	manifest *presets.InfrastructureManifest,
@@ -381,8 +414,13 @@ func (b *tofuBackend) Deploy(
 	stdOutWriter := util.CombineWriters(logBuffer, out)
 	stdErrWriter := util.CombineWriters(logBuffer, outErr)
 
+	updateLockfile, err := options.boolOption(tofuUpdateLockfileOption)
+	if err != nil {
+		return err
+	}
+
 	lockfileMode := tofu.LockfileReadonly
-	if options.UpdateDependencyLockfile {
+	if updateLockfile {
 		lockfileMode = tofu.LockfileUpdate
 	}
 

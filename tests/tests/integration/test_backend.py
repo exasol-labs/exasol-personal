@@ -19,12 +19,12 @@ from tests.testcase_helpers import (
 )
 
 
-@pytest.mark.launcher_tests
-def test_unknown_backend_is_rejected(exasol_path: str, tmp_path: Path) -> None:
-    # Given an exported infrastructure preset whose manifest declares an
-    # unknown backend
+def exported_preset_with_backend(
+    exasol_path: str, base_dir: Path, backend: str
+) -> Path:
+    """Export the first infrastructure preset, declaring the given backend in it."""
     infra_id = first_infrastructure_preset_id_or_skip(exasol_path)
-    infra_dir = tmp_path / "infra_export"
+    infra_dir = base_dir / f"infra_export_{backend}"
     infra_dir.mkdir()
     export_preset(exasol_path, infra_id, "infrastructure", str(infra_dir))
 
@@ -32,12 +32,21 @@ def test_unknown_backend_is_rejected(exasol_path: str, tmp_path: Path) -> None:
     original = manifest.read_text()
     if "backend:" in original:
         patched = "\n".join(
-            "backend: unknown" if line.strip().startswith("backend:") else line
+            f"backend: {backend}" if line.strip().startswith("backend:") else line
             for line in original.splitlines()
         )
     else:
-        patched = "backend: unknown\n" + original
+        patched = f"backend: {backend}\n" + original
     manifest.write_text(patched)
+
+    return infra_dir
+
+
+@pytest.mark.launcher_tests
+def test_unknown_backend_is_rejected(exasol_path: str, tmp_path: Path) -> None:
+    # Given an exported infrastructure preset whose manifest declares an
+    # unknown backend
+    infra_dir = exported_preset_with_backend(exasol_path, tmp_path, "unknown")
 
     install_dir = tmp_path / "install_export"
     install_dir.mkdir()
@@ -173,3 +182,51 @@ def test_debug_build_is_larger_than_release_build() -> None:
 
     # Restore the default release build for the rest of the suite.
     build(debug=False)
+
+
+@pytest.mark.launcher_tests
+def test_backend_option_is_offered_only_by_the_supporting_backend(
+    exasol_path: str, tmp_path: Path
+) -> None:
+    # Given the same infrastructure preset declared once per backend
+    tofu_preset = exported_preset_with_backend(exasol_path, tmp_path, "tofu")
+    local_preset = exported_preset_with_backend(exasol_path, tmp_path, "local")
+
+    # When help is requested for each of them
+    tofu_help = run_command([exasol_path, "install", str(tofu_preset), "--help"]).stdout
+    local_help = run_command(
+        [exasol_path, "install", str(local_preset), "--help"]
+    ).stdout
+
+    # Then only the OpenTofu-backed preset offers the OpenTofu option
+    assert "--tofu-update-lockfile" in tofu_help
+    assert "--tofu-update-lockfile" not in local_help
+
+
+@pytest.mark.launcher_tests
+def test_backend_option_of_another_backend_is_rejected(
+    exasol_path: str, tmp_path: Path
+) -> None:
+    # Given a local-backed infrastructure preset
+    local_preset = exported_preset_with_backend(exasol_path, tmp_path, "local")
+    deployment_dir = tmp_path / "deployment"
+    deployment_dir.mkdir()
+
+    # When an option only the OpenTofu backend supports is passed
+    command = [
+        exasol_path,
+        "install",
+        str(local_preset),
+        "--tofu-update-lockfile",
+        "--deployment-dir",
+        str(deployment_dir),
+        "--no-launcher-version-check",
+    ]
+    with pytest.raises(CalledProcessError) as exc:
+        run_command(command)
+
+    # Then the option is rejected by name and nothing is initialized
+    stderr = exc.value.stderr or ""
+    assert "--tofu-update-lockfile" in stderr
+    assert "does not support" in stderr
+    assert not (deployment_dir / ".exasolLauncherState.json").exists()
