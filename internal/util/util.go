@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/term"
@@ -232,6 +233,61 @@ func CopyDir(src, dst string) error {
 			Src: src,
 			Dst: dst,
 			Err: fmt.Errorf("%w: %w", ErrCopyFailed, err),
+		}
+	}
+
+	return restorePermissions(src, dst)
+}
+
+// restorePermissions reapplies the source tree's permission bits, because
+// os.CopyFS creates files as 0666 and directories as 0777 before umask,
+// widening anything the source kept private. Directories are done last so a
+// restored read-only directory cannot block writes to its own contents.
+func restorePermissions(src, dst string) error {
+	type dirMode struct {
+		path string
+		mode os.FileMode
+	}
+	var dirs []dirMode
+
+	err := filepath.Walk(src, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		relative, err := filepath.Rel(src, path)
+		if err != nil {
+			return fmt.Errorf("resolve copied path for %s: %w", path, err)
+		}
+		copied := filepath.Join(dst, relative)
+
+		if info.IsDir() {
+			dirs = append(dirs, dirMode{path: copied, mode: info.Mode()})
+
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		return os.Chmod(copied, info.Mode().Perm())
+	})
+	if err != nil {
+		return &CopyDirError{
+			Op:  "preserve permissions",
+			Src: src,
+			Dst: dst,
+			Err: err,
+		}
+	}
+
+	for _, dir := range slices.Backward(dirs) {
+		if err := os.Chmod(dir.path, dir.mode.Perm()); err != nil {
+			return &CopyDirError{
+				Op:  "preserve permissions",
+				Dst: dir.path,
+				Err: err,
+			}
 		}
 	}
 

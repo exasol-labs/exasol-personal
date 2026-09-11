@@ -37,17 +37,21 @@ func NewDeploymentDir(path string) DeploymentDir {
 }
 
 func DefaultDeploymentDirPath() (string, error) {
-	rootDir, err := LauncherRootDirPath()
+	rootDir, err := DeploymentsRootPath()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(rootDir, deploymentsDirName, defaultDeploymentDirName), nil
+	return filepath.Join(rootDir, defaultDeploymentDirName), nil
 }
 
-// DeploymentsRootPath returns the launcher-managed directory that contains
-// the default deployment directory and every named deployment directory.
 func DeploymentsRootPath() (string, error) {
+	return launcherpaths.DeploymentsRootPath()
+}
+
+// LegacyDeploymentsRootPath exists only so deployments there can be
+// migrated to DeploymentsRootPath.
+func LegacyDeploymentsRootPath() (string, error) {
 	rootDir, err := LauncherRootDirPath()
 	if err != nil {
 		return "", err
@@ -61,12 +65,12 @@ func DeploymentsRootPath() (string, error) {
 // directory. Callers are responsible for validating name is safe to use as a
 // literal directory name (see DeploymentNameVar in cmd/exasol).
 func NamedDeploymentDirPath(name string) (string, error) {
-	rootDir, err := LauncherRootDirPath()
+	rootDir, err := DeploymentsRootPath()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(rootDir, deploymentsDirName, name), nil
+	return filepath.Join(rootDir, name), nil
 }
 
 func LauncherRootDirPath() (string, error) {

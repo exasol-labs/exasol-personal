@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/exasol/exasol-personal/internal/launcherpaths"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +33,36 @@ func TestDeploymentDir_LayoutPaths(t *testing.T) {
 		filepath.Join(root, ConnectionInstruction),
 		deployment.ConnectionInstructionsPath(),
 	)
+}
+
+func TestDeploymentsRootPath_UsesSharedLauncherDeploymentsRoot(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	want, err := launcherpaths.DeploymentsRootPath()
+	require.NoError(t, err)
+
+	// When
+	got, err := DeploymentsRootPath()
+
+	// Then
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestLegacyDeploymentsRootPath_UsesLauncherRootDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	rootDir, err := LauncherRootDirPath()
+	require.NoError(t, err)
+
+	// When
+	got, err := LegacyDeploymentsRootPath()
+
+	// Then
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(rootDir, deploymentsDirName), got)
 }
 
 func TestNamedDeploymentDirPath_SameParentAsDefault(t *testing.T) {

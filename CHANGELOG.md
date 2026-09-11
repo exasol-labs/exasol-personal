@@ -42,6 +42,10 @@ Notable user-facing changes to Exasol Personal are documented here.
 
 ### Changed
 
+- Launcher-managed files now live under platform-conventional locations instead of one flat `~/.exasol/personal` directory on every platform. Managed deployments and SQL history move to `~/.exasol/launcher/{deployments,history}` on Linux, `~/Library/Application Support/exasol/launcher/{deployments,history}` on macOS, and `%APPDATA%\exasol\launcher\{deployments,history}` on Windows. The resource cache configuration moves from `runtime-artifacts.yaml` in the deployments root to `resources.yaml` at `${XDG_CONFIG_HOME:-~/.config}/exasol/launcher/resources.yaml` (Linux), `~/Library/Application Support/exasol/launcher/resources.yaml` (macOS), or `%APPDATA%\exasol\launcher\resources.yaml` (Windows). The resource cache moves to each platform's cache directory under an `exasol/launcher/resources` namespace.
+
+  Existing deployments, SQL history, and the cache's retention setting migrate automatically the first time a command runs after upgrading; the legacy resource cache is deleted rather than migrated, since it is rebuilt on demand. Cross-filesystem migration preserves deployment permissions and resumes safely if interrupted after publishing its staged copy. The launcher reports every completed change to standard error before the requested command's own output or a later migration error, for example `Migrated managed deployments to ~/.exasol/launcher/deployments`.
+
 - macOS local deployments now store Nano data in host-visible deployment
   storage, making persistent `/exa` files available to host tools.
 

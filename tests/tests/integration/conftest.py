@@ -11,6 +11,26 @@ from pathlib import Path
 import pytest
 import requests
 
+from .helpers import launcher_home_overrides
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_launcher_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """Move launcher-owned locations into a throwaway home for the whole suite.
+
+    Every launcher command runs startup path migration, so a suite that
+    inherited the real environment would migrate and delete the developer's
+    own deployments, SQL history, and cache. Tests that build their own
+    environment still override these per command; this only makes the default
+    safe.
+    """
+    home = tmp_path_factory.mktemp("launcher-home")
+    with pytest.MonkeyPatch.context() as patch:
+        for key, value in launcher_home_overrides(home).items():
+            patch.setenv(key, value)
+
+        yield home
+
 
 @pytest.fixture
 def mock_version_server() -> Iterator[str]:

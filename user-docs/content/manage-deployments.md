@@ -5,8 +5,15 @@ directory. Keep this directory until you have destroyed the deployment resources
 
 ## Select a deployment
 
-The default deployment is stored in `~/.exasol/personal/deployments/default`. When you run a command
-from an existing deployment directory, the launcher selects that deployment automatically.
+The default deployment is stored under the launcher's managed deployments directory, in a
+platform-specific location:
+
+- **Linux:** `~/.exasol/launcher/deployments/default`
+- **macOS:** `~/Library/Application Support/exasol/launcher/deployments/default`
+- **Windows:** `%APPDATA%\exasol\launcher\deployments\default`
+
+When you run a command from an existing deployment directory, the launcher selects that deployment
+automatically.
 
 To maintain multiple deployments, give each one a case-sensitive name with `--deployment` or `-d`:
 
@@ -17,8 +24,9 @@ exasol status -d demo
 exasol connect -d demo -c "SELECT 1"
 ```
 
-Named deployments live below `~/.exasol/personal/deployments/<name>`. Names that differ only by case
-may collide on the case-insensitive filesystems commonly used by macOS and Windows.
+Named deployments live in that same managed deployments directory, under `<name>`. Names that
+differ only by case may collide on the case-insensitive filesystems commonly used by macOS and
+Windows.
 
 Alternatively, select an arbitrary path with `--deployment-dir <path>`. You cannot combine
 `--deployment-dir` and `--deployment`.
@@ -32,8 +40,8 @@ exasol deployments list
 Example output:
 
 ```text
-default status=database_ready preset=local/ubuntu path=/Users/me/.exasol/personal/deployments/default
-staging status=stopped preset=aws/ubuntu path=/Users/me/.exasol/personal/deployments/staging
+default status=database_ready preset=local/ubuntu path=/Users/me/Library/Application Support/exasol/launcher/deployments/default
+staging status=stopped preset=aws/ubuntu path=/Users/me/Library/Application Support/exasol/launcher/deployments/staging
 ```
 
 The list does not include deployments selected through an arbitrary `--deployment-dir` path.
